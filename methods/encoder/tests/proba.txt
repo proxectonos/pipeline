@@ -1,0 +1,57 @@
+!$
+ Esta Ã© uma amostra de texto com caracteres binÃ¡ro
+ 
+Esta é uma amostra de texto com caracteres binários: \x00 e especiais: \x1F.  
+Aqui misturo cousas que hai que eliminar e outras (signos, alfabetos e emojis) que não:
+ +*{ºª  ￼ � � � 这是一段中文文本ة هذا هو نص باللغة العربية. -- 🙂 \uFFFF , \ud800, \ufffd 𓀀,  © and ™ . \u
+ E agora problemas com Latin: Esta Ã© uma amostra de texto com caracteres binÃ¡ros, sÃ³s cÃºs, 
+ riquiÃ±o e preÃ§o, vÃ£o, Ãµes, áº½les, Ã<89>s. Ã<89> meu. dÃ a tÃ a
+
+ 'SofÃƒÆ’Ã‚Â­a GarcÃƒÆ’Ã‚Â©s DurÃƒÆ’Ã‚Â¡'
+
+ A información máis recente indica que a Administración autonómica ten un plantel formado por 86.382 persoas, das que 34.042 son docentes de ensino non universitario e 33.744 traballan no Servizo Galego de Saúde.
+
+​
+
+ &lt;xml ... &gt;
+
+“rÃ©flexion”
+🌕🌕
+
+â”Hola, ¿cómo estás? España İnanç Esasları
+Ä°nanÃ§ EsaslarÄ±
+æ���� ����
+ï¿½>tï¿½ï¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+
+•Museos, galerías de arte, arquivos e monumentos.
+•Lectura de libros e de publicacións periódicas e as bibliotecas.
+•Artes escénicas e musicais. 
+•Teatro, ópera, zarzuela, ballet ou danza e circo.
+•Música clásica e música actual.
+
+-	Libros non de texto.
+-	Prensa.
+-	Bailes, cines, teatros e espectáculos.
+-	Outros servizos culturais.
+
+(...)<br>
+
+😀😳 🥵 🥶 😱 😨 
+
+ɣθɸ
+
+\x86bobbyhadz.com\x86
+\xe2\x86\x80
+
+2.3.1 U-0000D7FF = ed 9f bf = "퟿������"
+This just some random text
+More random text. Baeldung is awesome!�
+
+
+
+¡uʍop ǝpısdn ǝʇıɹʍ
+
+
+߿
+
+

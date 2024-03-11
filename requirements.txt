@@ -1,0 +1,5 @@
+ftfy==6.1.1
+tqdm==4.65.0
+wcwidth==0.2.6
+emoji
+datasketch==1.6.4
