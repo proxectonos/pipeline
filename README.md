@@ -2,14 +2,14 @@
 
 corpus novo para GPT:
 
--- encoding
--- pyplexity
--- quelingua (filter by lang)
--- scrips de processamento_crawler no github.
+- encoding
+- pyplexity
+- quelingua (filter by lang)
+- scrips de processamento_crawler no github.
+
 
 final files /home/compartido/nos/INPUT/FORMATADO/TEXTO/textos_gpt
 
---
 ## INSTALLATION WITH DOCKER
 - como criar imagem
 - adicionar exemplos para cada passo da pipeline
@@ -21,28 +21,36 @@ docker build -t proxectonos/nos:pipeline .
 
 ## USAGE WITHOUT DOCKER
 
+### run standard text cleaning routine
+
 ``
-python3 main.py --help
+sh entrypoint.sh  standard_pipeline 
+$path_file  
+``
+
+
+``
+sh entrypoint.sh  --help
 ``
 
 ``
-python3 main.py tokenizer --path --output
+sh entrypoint.sh  tokenizer --path --output
 ``
 
 ``
-python3 main.py detokenizer --path --output
+sh entrypoint.sh  detokenizer --path --output
 ``
 
 ``
-python3 main.py filter_lang --path --output
+sh entrypoint.sh  filter_lang --path --output
 ``
 
 ``
-python3 main.py recoglang --path
+sh entrypoint.sh  recoglang --path
 ``
 
 ``
-python3 main.py encoder --path --output
+sh entrypoint.sh  encoder --path --output
 ``
 
 ``
