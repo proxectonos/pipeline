@@ -14,7 +14,6 @@ RUN \
 
 WORKDIR /pipeline/methods/external
 
-# Use SSH URLs to clone the repositories
 RUN git clone https://github.com/citiususc/pyplexity.git
 RUN git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
 RUN chmod -R 777 quelingua_pipeline-main

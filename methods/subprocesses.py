@@ -5,10 +5,71 @@ import sys
 import os
 from pyplexity import PerplexityModel, PerplexityProcessor
 from pyplexity.tag_remover import HTMLTagRemover
+import tqdm
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+def mt_assert_parallel(src_file: str, tgt_file: str):
+    #check that both files have the same number of lines 
+    with open(src_file, "r", encoding='utf-8') as src:
+        with open(tgt_file, "r", encoding='utf-8') as tgt:
+            src_lines = src.readlines()
+            tgt_lines = tgt.readlines()
+            if len(src_lines) != len(tgt_lines):
+                raise Exception(f"Source and target files have different number of lines: {len(src_lines)} and {len(tgt_lines)}")
+    return
+
+def read_file_line_by_line(file):
+    with open(file, "r", encoding='utf-8') as f:
+        for line in f:
+            yield line
+
+
+
+def mt_quelingua(args:object):
+    #open src and target file, iterate line by line passing it to quelingua and check that that 
+    #the language tag of quelingua is the same as the src_lang variable for src_file
+    #and tgt_lang variable for tgt_file 
+    #if they do not match, append to a list of lines that do not match 
+    #return the list of lines that do not match
+    #write the lines that do not match to a file with the name provided in args.output
+    src_file = args.source
+    tgt_file = args.target
+    correct_lang = args.correct_lang_source
+    if args.mode != 'txt':
+        raise Exception("Not implemented yet. Only txt files are supported for MT parallel dataset processing ")
+    
+    with open(src_file, 'r', encoding='utf-8') as s:
+        len_src = len(s.readlines())
+    
+    with open(f'{src_file}{args.output_tag}', 'w+', encoding='utf-8') as s, open(f'{tgt_file}{args.output_tag}', 'w+', encoding='utf-8') as t, open(f'{src_file}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_src, open(f'{tgt_file}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_tgt:
+        src_file_generator = read_file_line_by_line(src_file)
+        tgt_file_generator = read_file_line_by_line(tgt_file)
+
+        for src_line, tgt_line in tqdm.tqdm(zip(src_file_generator, tgt_file_generator), total=len_src):
+            src_result = subprocess.run(
+                ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
+                input=src_line,
+                text=True,
+                capture_output=True,
+            )
+            
+            '''tgt_result = subprocess.run(
+                ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
+                input=tgt_line,
+                text=True,
+                capture_output=True,
+            )
+            '''
+            src_lang_tag = src_result.stdout.strip().split('\t')[-1]
+            #tgt_lang_tag = tgt_result.stdout.strip().split('\t')[-1]
+            if src_lang_tag.strip().lower() != correct_lang.lower():
+                m_src.write(src_line)
+                m_tgt.write(tgt_line)
+            else:
+                s.write(src_line)
+                t.write(tgt_line)
 
 def pyplexity(path: str, args:list):
 

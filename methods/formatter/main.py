@@ -34,6 +34,8 @@ def process_text_delimiter(input_file, delimiter, output_file):
             #parts = chunk.split(delimiter)
             parts = re.split(delimiter, chunk)
             for _, text in enumerate(parts[:-1]):
+                text = text.strip()
+                #print(_, text, delimiter)
                 #print(text_id, len(text.split()),text)
                 result_data.append(format_chunk(text,text_id))
                 text_id += 1
@@ -52,6 +54,7 @@ def process_text_delimiter(input_file, delimiter, output_file):
 def save_to_json_lines(data, output_file):
     with open(output_file, 'a+', encoding='utf-8') as file:
         for entry in data:
+            print(entry)
             json_line = json.dumps(entry, ensure_ascii=False)
             file.write(json_line + '\n')
 

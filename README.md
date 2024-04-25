@@ -1,36 +1,47 @@
 # NLP_processing
-
-corpus novo para GPT:
-
-- encoding
-- pyplexity
-- quelingua (filter by lang)
-- scrips de processamento_crawler no github.
-
-
-final files /home/compartido/nos/INPUT/FORMATADO/TEXTO/textos_gpt
-
-## INSTALLATION WITH DOCKER
-- como criar imagem
-- adicionar exemplos para cada passo da pipeline
+Pipeline developed to clean datasets used for training MT and LLM models.
+## Installation
 
 ``
 docker build -t proxectonos/nos:pipeline .
 ``
-### docker run --mount src=path/to/folder,target=/aliasfolderfordocker/,type=bind proxectonos/nos:pipeline command(tokenizer, detokenizer, etc) 
+### How to process a file using the container
 
-## USAGE WITHOUT DOCKER
+``
+docker run --mount src=path/to/folder,target=/aliasfolderfordocker/,type=bind proxectonos/nos:pipeline command(tokenizer, detokenizer, etc) 
+``
 
+## Without Docker
+install requirements.txt
+    pip install -r requirements.txt
+    
+install quelingua
+cd methods/external
+git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
+
+``
+chmod +x entrypoint.sh
+./entrypoint.sh command (see below)
+``
 ### run standard text cleaning routine
-
+This command executes the following commands:
+- encoding
+- deduplication
+- pyplexity (perplexity filter)
+- quelingua (filter by lang)
+  
 ``
-sh entrypoint.sh  standard_pipeline 
-$path_file  
+chmod +x entrypoint.sh
+./entrypoint.sh  standard_pipeline  $path_file  
 ``
 
-
+## Available commands
 ``
 sh entrypoint.sh  --help
+``
+
+``
+sh entrypoint.sh  formatter --path --output  --technique --delimiter
 ``
 
 ``

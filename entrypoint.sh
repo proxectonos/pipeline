@@ -1,13 +1,13 @@
 #!/bin/bash
-echo $@
+echo "$@"
 
-filepath=$(dirname "$2")
-filename=$(basename "$2" .jsonl)
-fullpath_without_ext="$filepath/$filename"
 
 
 if [ $1 = "standard_pipeline" ] 
 then
+  filepath=$(dirname "$2")
+  filename=$(basename "$2" .jsonl)
+  fullpath_without_ext="$filepath/$filename"
   echo "Starting standard pipeline..."
   
    echo "Running encoder..."
@@ -24,5 +24,5 @@ then
 
 else
   echo "Running main.py with arguments: $@"
-  python3 main.py $@ 
+  python3 main.py "$@"
 fi

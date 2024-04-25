@@ -7,6 +7,7 @@ from methods.encoder.fixer import encoding_fixer
 from inspect import getmembers, isfunction
 from methods.formatter import main as formatter
 from methods import subprocesses
+import codecs
 from multiprocessing import Process
 from pathlib import Path
 from tqdm import tqdm
@@ -38,11 +39,9 @@ def _build_parser():
 
     base_parser = argparse.ArgumentParser(add_help=False)
     base_parser.add_argument(
-        "--mode", "-m", default="jsonl", help=".txt or .jsonl input and output format"
+        "--mode", "-m", default="jsonl", help=".txt or .jsonl output format"
     )
-    base_parser.add_argument(
-        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
-    )
+
     parser.add_argument("-lm", "--list_methods", nargs=0, action=List_methods)
 
     parser.add_argument(
@@ -53,12 +52,26 @@ def _build_parser():
 
     subparsers = parser.add_subparsers(dest="action", help="choose one")
 
+    mt_quelingua_parser = subparsers.add_parser(
+        "mt_quelingua", help="check line by line if the data is in the correct language. Filters input to return only ", parents=[base_parser]
+    )
+
+    mt_quelingua_parser.add_argument(
+        "-ot", "--output_tag", type=str, required=True, help="output tag to append to file e.g. $filename.quelingua"
+    )
+    mt_quelingua_parser.add_argument("-s", "--source", type=str, required=True, help="source file absolute path")
+    mt_quelingua_parser.add_argument("-t", "--target", type=str, required=True, help="target file absolute path")
+    mt_quelingua_parser.add_argument("-cl", "--correct_lang_source", type=str, required=True, help="correct expected language tag for each line in the source file")
+
     formatter_parser = subparsers.add_parser(
         "formatter", help="format a file into jsonl format", parents=[base_parser]
     )
 
     formatter_parser.add_argument(
         "-o", "--output", type=str, required=True, help="output file absolute path"
+    )
+    formatter_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
     )
     formatter_parser.add_argument(
         "-t",
@@ -75,8 +88,12 @@ def _build_parser():
         help="Default:\n\n\n. regex arguments must be preceded by $ e.g. #-d $'#\|\|\|#\n\n\n' ",
         default="\n\n\n",
     )
+    
     encoder_parser = subparsers.add_parser(
         "encoder", help="encode plain text file to utf-8", parents=[base_parser]
+    )
+    encoder_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
     )
     encoder_parser.add_argument(
         "-o", "--output", type=str, required=True, help="output file absolute path"
@@ -114,7 +131,9 @@ def _build_parser():
     tokenizer_parser = subparsers.add_parser(
         "tokenizer", help="tokenize plain text file", parents=[base_parser]
     )
-
+    tokenizer_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
     tokenizer_parser.add_argument(
         "-o", "--output", type=str, required=True, help="output file absolute path"
     )
@@ -124,7 +143,9 @@ def _build_parser():
         help="detokenize text file tokenized with our tokenizer",
         parents=[base_parser],
     )
-
+    detokenizer_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
     detokenizer_parser.add_argument(
         "-o", "--output", type=str, required=True, help="output file absolute path"
     )
@@ -132,10 +153,16 @@ def _build_parser():
     recoglang_parser = subparsers.add_parser(
         "recoglang", help="identify the language a text is written in"
     )
+    recoglang_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
     filter_lang_parser = subparsers.add_parser(
         "filter_lang",
         parents=[base_parser],
         help="returns all text in the source file that matches the specified target language",
+    )
+    filter_lang_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
     )
     filter_lang_parser.add_argument(
         "-o", "--output", type=str, required=True, help="output file path"
@@ -152,10 +179,17 @@ def _build_parser():
         "fix_new_lines",
         help="returns all text in the source file that matches the specified target language",
     )
+    fix_new_lines_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
+
     jaccard_similarity_parser = subparsers.add_parser(
         "jaccard",
         help="deduplicate files with jaccard similarity",
         parents=[base_parser],
+    )
+    jaccard_similarity_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
     )
     jaccard_similarity_parser.add_argument(
         "--output_file",
@@ -196,6 +230,9 @@ def _build_parser():
         "deduplication", help="deduplicate files with hashes", parents=[base_parser]
     )
     deduplication_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
+    deduplication_parser.add_argument(
         "--output", "-o", type=str, help="path to Output file"
     )
     deduplication_parser.add_argument(
@@ -233,6 +270,9 @@ def _build_parser():
         "pyplexity",
         help="calculate perplexity of a language model",
         parents=[base_parser],
+    )
+    pyplexity_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
     )
     pyplexity_parser.add_argument(
         "--path_model",
@@ -352,6 +392,9 @@ def split_file_chunk(mm, start, lines_to_write, output_file, pbar, extension):
 
 def _split_into_files(args, num_files: int = 2, extension: str = ".jsonl"):
     # split big files into manageable inputs
+
+
+
     Path("./temp/").mkdir(parents=True, exist_ok=True)
 
     # get the file size
@@ -389,7 +432,7 @@ def _split_into_files(args, num_files: int = 2, extension: str = ".jsonl"):
                     future.result()
 
                 pbar.close()  # Close the progress bar after all tasks are completed
-                print("done", end=' ')
+                print("Done", end='\n')
 
 
 def _сheck_if_folder(input) -> bool:
@@ -450,8 +493,13 @@ def run():
         shutil.rmtree("./temp")
     action = args.action
 
+    if action == 'mt_quelingua':
+        subprocesses.mt_quelingua(args)
+        sys.exit()
 
     if args.action == "formatter":
+        args.delimiter = codecs.decode(args.delimiter, 'unicode_escape')
+
         formatter.run(args.path, args.technique, args.output, args.delimiter)
         sys.exit()
 
@@ -482,7 +530,7 @@ def run():
         _split_into_files(args=args, num_files=NUM_FILES, extension=extension)
         files = glob.glob(f"./temp/*{extension}")
         processes = []
-        print(f"processing files in parallel")
+        print(f"Processing files in parallel")
         for file in files:
             proc = Process(
                 target=parallelize,

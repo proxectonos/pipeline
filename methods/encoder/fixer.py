@@ -23,7 +23,7 @@ def strip_filter(sentence):
     return sentence.strip()
 
 
-def encoding_fixer(text, filtered_categories:str, filtered_characters:str, remove_characters:str, emojies:bool):
+def encoding_fixer(text, filtered_categories:str='', filtered_characters:str='', remove_characters:str='', emojies:bool=False):
 
     if type(text) == str:
         text = text.encode("utf-8", "ignore").decode("utf-8")
