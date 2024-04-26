@@ -20,6 +20,7 @@ done
 echo 'Path variables modified in tagging scripts.'
 
 chmod 0755 quelingua
+chmod 0755 quelingua_lines
 chmod 0755 LexiconBuilder
 chmod 0755 scripts/*
 

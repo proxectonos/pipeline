@@ -21,7 +21,7 @@ import os
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 action = None
-NUM_FILES = 10
+NUM_FILES = 4
 
 
 class List_methods(argparse.Action):
