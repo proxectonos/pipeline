@@ -1,7 +1,13 @@
-# NLP_processing
+# NLP_processing for Galician
 Pipeline developed to clean datasets used for training MT and LLM models.
 ## Installation
 
+it is necessary to install git-lfs to clone the repository
+``
+sudo apt-get install git-lfs
+``
+
+## With docker
 ``
 docker build -t proxectonos/nos:pipeline .
 ``
@@ -12,28 +18,32 @@ docker run --mount src=path/to/folder,target=/aliasfolderfordocker/,type=bind pr
 ``
 
 ## Without Docker
-install requirements.txt
-    pip install -r requirements.txt
-    
-install quelingua
+#### install requirements.txt
+``
+pip install -r requirements.txt
+``  
+##### install quelingua
+```
 cd methods/external
 git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
+```
 
-``
+#### make entrypoint executable
+```
 chmod +x entrypoint.sh
 ./entrypoint.sh command (see below)
-``
+```
 ### run standard text cleaning routine
-This command executes the following commands:
+By default it expects a .jsonl file. You can transform your .txt file into the expect .jsonl format by using the following command:
+```
+./entrypoint formatter -p $path_to_file -delimiter $regex_to_divide_txt -o $output_file_path
+```
+ Executing the command ./entrypoint standard_pipeline $path_input_file calls the following commands:
 - encoding
 - deduplication
 - pyplexity (perplexity filter)
 - quelingua (filter by lang)
-  
-``
-chmod +x entrypoint.sh
-./entrypoint.sh  standard_pipeline  $path_file  
-``
+
 
 ## Available commands
 ``
