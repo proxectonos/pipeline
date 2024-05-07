@@ -151,7 +151,7 @@ def _build_parser():
     )
 
     recoglang_parser = subparsers.add_parser(
-        "recoglang", help="identify the language a text is written in"
+        "recoglang", help="identify the language a text is written in", parents=[base_parser]
     )
     recoglang_parser.add_argument(
         "--path", "-p", required=True, type=str, help="Absolute path to Input file"

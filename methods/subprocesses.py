@@ -127,33 +127,34 @@ def quelingua_lines(path:str, args:object):
                     #TODO: use quelingua instead of quelingua_lines to add language codes to the jsonl correctly?
                     sentences = []
                     for line in result.stdout.strip().split('\n'):
-                        text, lang = line.split('\t')
-                        #if args.filter_results_by_lang we create a data["text"] with the filtered lines 
-                        if (args.filter_results_by_lang and lang.strip().lower() == args.filter_results_by_lang.lower()) or not args.filter_results_by_lang:
-                            sentences.append([text, lang])
-                    # append all sentences respecting the newlines of original file. Extract the language codes from the sentences and average most common one
+                        parts = line.split('\t')
+                        if len(parts) == 2:  # Check if line splits into exactly two parts
+                            text, lang = parts
+                            if (args.filter_results_by_lang and lang.strip().lower() == args.filter_results_by_lang.lower()) or not args.filter_results_by_lang:
+                                sentences.append([text, lang])
                     if sentences:
                         lang_codes = [s[1] for s in sentences]
                         most_common_lang = Counter(lang_codes).most_common(1)[0][0]
                         data["text"] = "\n".join([s[0] for s in sentences])
                         data["lang"] = most_common_lang
-                        if data["text"]: #avoid empty lines in jsonl after filtering LINES by language
+                        if data["text"]:
                             w.write(json.dumps(data, ensure_ascii=False)+'\n')
 
             elif args.model == "txt":
                 result = subprocess.run(
-                        ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
-                        stdin=i,
-                        stdout=w,
-                    )
+                    ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
+                    stdin=i,
+                    stdout=w,
+                )
                 if args.filter_results_by_lang:
                     with open(f'{path}_p', 'r', encoding='utf-8') as p:
                         filtered_lines = []
                         for l in p.readlines():
-                            sent = ''.join(l.split('\t')[:-1])
-                            tag = l.split('\t')[-1]
-                            if tag.strip().lower() == args.filter_results_by_lang.lower():
-                                filtered_lines.append(f'{sent}\n')
+                            parts = l.split('\t')
+                            if len(parts) == 2:  # Check if line splits into exactly two parts
+                                sent, tag = parts
+                                if tag.strip().lower() == args.filter_results_by_lang.lower():
+                                    filtered_lines.append(f'{sent}\n')
                     with open(f'{path}_p', 'w+', encoding='utf-8') as p:
                         p.writelines(filtered_lines)
     return result
@@ -178,7 +179,7 @@ def call_quelingua(input_string:str, mode:str):
     # Capture the stdout
     stdout = result.stdout
     return stdout
-    '''
+
 def quelingua(text: str, _type: str = "lines"):
     if _type == "lines":
         #text input is a str line from file
@@ -198,7 +199,7 @@ def quelingua(text: str, _type: str = "lines"):
             stdout=subprocess.PIPE,
         )
         return result.stdout.decode("utf-8").strip()
-'''
+
 
 def tokenizer_paulo(text: str):
     echo_sentence = subprocess.Popen(["echo", f"{text}"], stdout=subprocess.PIPE)

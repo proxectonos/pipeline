@@ -30,12 +30,13 @@ def encoding_fixer(text, filtered_categories:str='', filtered_characters:str='',
     else:
         text = text.decode("utf-8", "ignore")
     
-
-
     # Remove \x0 labels present as utf-8 characters
     # binari chars coded as strings "\x" need to scape the "\" for becoming binary again and decoded them again
     text = re.sub(r'\\x([0-9a-fA-F]{2})', lambda g: chr(int(g.group(1),16)), text)
     text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda g: chr(int(g.group(1),16)), text)
+    # text = re.sub(r'(?<!\\)\\x([0-9a-fA-F]{2})', lambda g: chr(int(g.group(1),16)), text)
+    # text = re.sub(r'(?<!\\)\\u([0-9a-fA-F]{4})(?<!201c)(?<!201d)', lambda g: chr(int(g.group(1),16)), text)
+    text = re.sub(r'[\u201c\u201d]', r'\\"', text)
     text = text.encode("utf-8", "ignore").decode("utf-8")
 
     
