@@ -11,6 +11,7 @@ import codecs
 from multiprocessing import Process
 from pathlib import Path
 from tqdm import tqdm
+from operator import itemgetter
 import argparse
 import shutil
 import glob
@@ -557,7 +558,10 @@ def run():
                         tgt_file.write(line)
 
     if "remove_low_scores" in args and args.remove_low_scores:
-        with open(f"{args.output}_removed", "w+", encoding="utf-8", errors="ignore") as tgt_file:
+        output_filename, output_extension = os.path.splitext(args.output)
+        output_filename_removed = f"{output_filename}_removed{output_extension}"
+
+        with open(output_filename_removed, "w+", encoding="utf-8", errors="ignore") as tgt_file:
             for file in sorted(
                 files, key=lambda x: int(x.split("/")[-1].split(".")[0])
             ):
@@ -565,6 +569,7 @@ def run():
                     with open(f"{file}_removed", "r", encoding="utf-8", errors="ignore") as fp:
                         for line in fp.readlines():
                             tgt_file.write(line)
+
     shutil.rmtree("./temp")
     # Remove all files that start with "__tmp_" quickfix quelingua tmp files
     for filename in os.listdir("./"):
