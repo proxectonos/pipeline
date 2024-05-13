@@ -110,7 +110,7 @@ def find_similar_documents_minhash_dynamic_threshold(
 
     # Generate default output filename if generation is flagged
     if output_file:
-        output_file = os.path.join(os.path.dirname(args.path), f"{input_filename}_deduplicated.{args.mode}")
+        output_file = os.path.join(os.path.dirname(args.path), f"{input_filename}_deduplicated_jaccard.{args.mode}")
 
         # Write the unique documents to the new output file
         if args.mode == 'jsonl':
@@ -120,9 +120,11 @@ def find_similar_documents_minhash_dynamic_threshold(
 
     # Generate deduplication samples file name
     if generate_deduplication_samples:
-        deduplication_samples_file = os.path.join(os.path.dirname(args.path), f"{input_filename}_deduplicated_samples.{args.mode}")
+        deduplication_samples_file = os.path.join(os.path.dirname(args.path), f"{input_filename}_deduplicated_jaccard_samples.{args.mode}")
         with open(deduplication_samples_file, 'w') as deduplication_file:
-            if args.mode == 'json':
+            if args.mode == 'jsonl':
+                # Inside the block for writing deduplication samples JSON file
+                print("Writing deduplication samples to JSONL file...")  # Debug print
                 result_data = {"similar_documents_groups": []}
                 for group in similar_doc_groups.values():
                     group_data = {
@@ -137,8 +139,10 @@ def find_similar_documents_minhash_dynamic_threshold(
                         ]
                     }
                     result_data["similar_documents_groups"].append(group_data)
+                    # Serialize each group_data as a JSON object on a new line
+                    json.dump(result_data, deduplication_file, ensure_ascii=False, indent=2)
+                print("Deduplication samples successfully written to JSONL file.")  # Debug print
 
-                json.dump(result_data, deduplication_file, ensure_ascii=False, indent=2)
             
             elif args.mode == 'txt':
                 for group in similar_doc_groups.values():
@@ -161,19 +165,22 @@ def find_similar_documents_minhash_dynamic_threshold(
     return total_documents_in_file, total_documents_removed, total_documents_after_deduplication
 
 def jaccard_deduplicate(args):
+    try:
+        total_documents_in_file, total_documents_removed, total_documents_after_deduplication = find_similar_documents_minhash_dynamic_threshold(
+            read_documents(args.path, max_documents=args.max_documents, input_format=args.mode),
+            length_threshold=args.length_threshold,
+            output_file=args.output_file,
+            lsh_threshold=args.lsh_threshold,
+            generate_deduplication_samples=args.generate_deduplication_samples,
+            args=args
+        )
 
-    total_documents_in_file, total_documents_removed, total_documents_after_deduplication = find_similar_documents_minhash_dynamic_threshold(
-        read_documents(args.path, max_documents=args.max_documents, input_format=args.mode),
-        length_threshold=args.length_threshold,
-        output_file=args.output_file,
-        lsh_threshold=args.lsh_threshold,
-        generate_deduplication_samples=args.generate_deduplication_samples,
-        args=args
-    )
+        print(f'Total documents in the file: {total_documents_in_file}')
+        print(f'Total documents deduplicated/removed: {total_documents_removed}')
+        print(f'Total documents after deduplication: {total_documents_after_deduplication}')
 
-    print(f'Total documents in the file: {total_documents_in_file}')
-    print(f'Total documents deduplicated/removed: {total_documents_removed}')
-    print(f'Total documents after deduplication: {total_documents_after_deduplication}')
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     jaccard_deduplicate()

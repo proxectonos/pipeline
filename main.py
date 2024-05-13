@@ -196,7 +196,7 @@ def _build_parser():
         "--output_file",
         "-o",
         required=False,
-        action="store_true",
+        action='store_true',
         help="Generate deduplicated file at the same folder as the input file.",
     )
 
@@ -223,6 +223,7 @@ def _build_parser():
     jaccard_similarity_parser.add_argument(
         "--generate_deduplication_samples",
         "-gds",
+        required=False,
         action="store_true",
         help="Generate deduplication samples for manual inspection. This combined with --max_documents can generate the required samples before deduplicating the whole file, ex: path/to/input/file -md 20000 -gds. File will be saved at the same folder as the input file",
     )
