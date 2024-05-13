@@ -125,7 +125,6 @@ def find_similar_documents_minhash_dynamic_threshold(
             if args.mode == 'jsonl':
                 # Inside the block for writing deduplication samples JSON file
                 print("Writing deduplication samples to JSONL file...")  # Debug print
-                result_data = {"similar_documents_groups": []}
                 for group in similar_doc_groups.values():
                     group_data = {
                         "group_ids": [doc_id + 1 for doc_id in group],
@@ -134,16 +133,14 @@ def find_similar_documents_minhash_dynamic_threshold(
                             {
                                 "document_id": doc_id + 1,
                                 "text": documents[doc_id]["text"],
-                                "jaccard_similarity": minhash_signatures[group[0]].jaccard(minhash_signatures[doc_id])  # Calculate Jaccard similarity
+                                "jaccard_similarity": minhash_signatures[group[0]].jaccard(minhash_signatures[doc_id])
                             } for doc_id in group
                         ]
                     }
-                    result_data["similar_documents_groups"].append(group_data)
                     # Serialize each group_data as a JSON object on a new line
-                    json.dump(result_data, deduplication_file, ensure_ascii=False, indent=2)
+                    deduplication_file.write(json.dumps(group_data, ensure_ascii=False) + '\n')
                 print("Deduplication samples successfully written to JSONL file.")  # Debug print
 
-            
             elif args.mode == 'txt':
                 for group in similar_doc_groups.values():
                     best_doc_id = min(group, key=lambda doc_id: len(documents[doc_id]["text"].split('\n')))
