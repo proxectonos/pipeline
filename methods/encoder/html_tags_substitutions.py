@@ -6,7 +6,7 @@ https://www.w3schools.com/tags/ref_urlencode.ASP
 COMMON_HTML_TAGS = {
     "%20":" ",
     "%21":"!",
-    "%22":"\"",
+    "%22":'\\"',
     "%23":"#",
     "%24":"$",
     "%25":"%",
