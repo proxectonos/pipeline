@@ -21,12 +21,7 @@ docker run --mount src=path/to/folder,target=/aliasfolderfordocker/,type=bind pr
 #### install requirements.txt
 ``
 pip install -r requirements.txt
-``  
-##### install quelingua
-```
-cd methods/external
-git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
-```
+``
 
 #### make entrypoint executable
 ```
@@ -50,30 +45,31 @@ By default it expects a .jsonl file. You can transform your .txt file into the e
 sh entrypoint.sh  --help
 ``
 
-``
+- ``
 sh entrypoint.sh  formatter --path --output  --technique --delimiter
 ``
-
-``
+Transforms a .txt file input into a .jsonl file. The --delimiter can be any  regex pattern, preceded by $ e.g. $'#\|\|\|#' where  #\|\|\|# is the pattern used to divide the text.
+- ``
 sh entrypoint.sh  tokenizer --path --output
 ``
-
-``
+tokenizes a latin script text. This tokenizer was developed mainly for Galician.
+- ``
 sh entrypoint.sh  detokenizer --path --output
 ``
-
+detokenizes a text previously parsed with tokenizer.
+- ``
+sh entrypoint.sh  filter_lang --path --output --filter_results_by_lang
 ``
-sh entrypoint.sh  filter_lang --path --output
-``
-
-``
+-line by line identification of the language a document is written in. If filter_results_by_lang is provided, the output file will only contain text in the specified language. filter_results_by_lang languages are 2 letter tags e.g. gl for Galician, es for Spanish, etc.
+-``
 sh entrypoint.sh  recoglang --path
 ``
-
-``
+Reads an input text file and returns the language it is written in.
+- ``
 sh entrypoint.sh  encoder --path --output
 ``
-
-``
+fixes encoding issues in files.
+- ``
 sh entrypoint.sh pyplexity
 ``
+Calculates perplexity of the input. This script implements [PyPlexity](https://github.com/citiususc/pyplexity.git)
