@@ -29,7 +29,7 @@ chmod +x entrypoint.sh
 ./entrypoint.sh command (see below)
 ```
 ### run standard text cleaning routine
-By default it expects a .jsonl file. You can transform your .txt file into the expect .jsonl format by using the following command:
+By default it expects a .jsonl file. You can transform your .txt file into  .jsonl format by using the following command:
 ```
 ./entrypoint formatter -p $path_to_file -delimiter $regex_to_divide_txt -o $output_file_path
 ```
