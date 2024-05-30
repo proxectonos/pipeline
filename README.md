@@ -70,6 +70,10 @@ sh entrypoint.sh  encoder --path --output
 ``
 fixes encoding issues in files.
 - ``
+sh entrypoint.sh  jaccard --path --output
+``
+Deduplicates files based on their Jaccard similarity.
+- ``
 sh entrypoint.sh pyplexity
 ``
 Calculates perplexity of the input. This script implements [PyPlexity](https://github.com/citiususc/pyplexity.git)
