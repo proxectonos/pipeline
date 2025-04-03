@@ -88,8 +88,8 @@ Please, cite this paper if you use the modules of this NLP toolkit to clean a co
 
 Este proyecto emplea una diversidad de corpus lingüísticos que contienen textos en guaraní y guaraní-paraguayo (jopará) con distintos enfoques y estructuras.  
 
-- **CommonCrawl:** Base de datos construida a partir de un rastreo masivo de la web, que incluye páginas en guaraní y otros idiomas minoritarios. [Ver más](https://commoncrawl.org/)  
-- **OSCAR:** Conjunto de textos recopilados y procesados con filtros de idioma, ofreciendo una sección específica para el guaraní. [Ver más](https://huggingface.co/datasets/oscar)  
-- **OPUS:** Colección de corpus especializados en traducción automática y alineación de textos, con recursos disponibles en guaraní. [Ver más](https://opus.nlpl.eu/)  
-- **Wikipedia en Guaraní:** Artículos escritos exclusivamente en guaraní, lo que proporciona una fuente de contenido natural y actualizado del idioma. [Ver más](https://gn.wikipedia.org/)  
-- **COREGUAPA:** Corpus de referencia del guaraní paraguayo, compuesto por textos normativos y oficiales como la Constitución Nacional y documentos de legislación lingüística. [Ver más](https://corpus.spl.gov.py/)  
+- **OPUS:** Corpus con traducciones en múltiples idiomas, incluyendo el guaraní. [Ver más](https://opus.nlpl.eu/)  
+- **Colossal OSCAR:** Proyecto de código abierto en Hugging Face, diseñado para ofrecer recursos multilingües basados en la web, utilizados en aplicaciones de aprendizaje automático e inteligencia artificial. [Ver más](https://huggingface.co/datasets/oscar)  
+- **MADLAD-400:** Modelo de traducción automática multilingüe basado en la arquitectura T5, entrenado con 250 mil millones de tokens en más de 450 idiomas, utilizando datos públicos. [Ver más](https://huggingface.co/datasets/allenai/MADLAD-400)  
+- **COREGUAPA:** Base de datos para la búsqueda de palabras en guaraní, permitiendo analizar su uso, ámbito y frecuencia en distintos contextos lingüísticos. [Ver más](https://corpus.spl.gov.py/)  
+- **Wikipedia en Guaraní:** Colección de artículos escritos en guaraní, proporcionando contenido relevante y actualizado en el idioma. [Ver más](https://gn.wikipedia.org/)  
