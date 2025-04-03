@@ -82,3 +82,15 @@ Calculates perplexity of the input. This script implements [PyPlexity](https://g
 Please, cite this paper if you use the modules of this NLP toolkit to clean a corpus:
 
 * Iria de-Dios-Flores, Silvia Paniagua Suárez, Cristina Carbajal Pérez, Daniel Bardanca Outeiriño, Marcos Garcia, and Pablo Gamallo. 2024. CorpusNÓS: A massive Galician corpus for training large language models. In Proceedings of the 16th International Conference on Computational Processing of Portuguese - Vol. 1, pages 593–599, Santiago de Compostela, Galicia/Spain. Association for Computational Lingustics.
+
+  ## Data Sources  
+
+## Data Sources  
+
+Este proyecto emplea una diversidad de corpus lingüísticos que contienen textos en guaraní y guaraní-paraguayo (jopará) con distintos enfoques y estructuras.  
+
+- **CommonCrawl:** Base de datos construida a partir de un rastreo masivo de la web, que incluye páginas en guaraní y otros idiomas minoritarios. [Ver más](https://commoncrawl.org/)  
+- **OSCAR:** Conjunto de textos recopilados y procesados con filtros de idioma, ofreciendo una sección específica para el guaraní. [Ver más](https://huggingface.co/datasets/oscar)  
+- **OPUS:** Colección de corpus especializados en traducción automática y alineación de textos, con recursos disponibles en guaraní. [Ver más](https://opus.nlpl.eu/)  
+- **Wikipedia en Guaraní:** Artículos escritos exclusivamente en guaraní, lo que proporciona una fuente de contenido natural y actualizado del idioma. [Ver más](https://gn.wikipedia.org/)  
+- **COREGUAPA:** Corpus de referencia del guaraní paraguayo, compuesto por textos normativos y oficiales como la Constitución Nacional y documentos de legislación lingüística. [Ver más](https://corpus.spl.gov.py/)  
