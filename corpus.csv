@@ -1,6 +1,6 @@
 Nombre;Descripcion;Referencia
-Opus;Corpus con traducciones en multiples idiomas, incluye el guarani;https://opus.nlpl.eu/
-Colossal OSCAR,Hugging Face;proyecto de código abierto que tiene como objetivo proporcionar recursos y conjuntos de datos multilingües basados ??en la web para aplicaciones de aprendizaje automático (ML) e inteligencia artificial (IA).;https://huggingface.co/datasets/oscar-corpus/colossal-oscar-1.0
-MADLAB-400, Huggingface;modelo de traducción automática multilingüe basado en la arquitectura T5, entrenado con 250 000 millones de tokens que abarcan más de 450 idiomas, utilizando datos públicos.;https://huggingface.co/google/madlad400-7b-mt
-COREGUAPA;base de datos para la búsqueda de palabras con la finalidad de contextualizar su uso, ámbito, frecuencia, etc. ;https://corpus.spl.gov.py/py?_gl=1*73lzhc*_ga*MTY5NDUyMzMyNi4xNzQzNjE3NDc4*_ga_7DGVVLJYD7*MTc0MzYxNzQ3OC4xLjEuMTc0MzYxNzU0Ny4wLjAuMA..
-Wikipedia Guarani;Articulos de wikipedia en idioma guarani;https://gn.wikipedia.org/wiki/Kuatia_%C3%91epyr%C5%A9ha
+Opus;Corpus con traducciones en multiples idiomas, incluye el guarani; https://opus.nlpl.eu/
+Colossal OSCAR,Hugging Face;proyecto de código abierto que tiene como objetivo proporcionar recursos y conjuntos de datos multilingües basados en la web para aplicaciones de aprendizaje automático (ML) e inteligencia artificial (IA).;https://huggingface.co/datasets/oscar
+MADLAB-400, Huggingface;modelo de traducción automática multilingüe basado en la arquitectura T5, entrenado con 250 000 millones de tokens que abarcan más de 450 idiomas, utilizando datos públicos.;https://github.com/MaDDL-Lab/MADLAB-400
+COREGUAPA;base de datos para la búsqueda de palabras con la finalidad de contextualizar su uso, ámbito, frecuencia, etc. ;https://corpus.spl.gov.py/
+Wikipedia Guarani;Articulos de wikipedia en idioma guarani; https://gn.wikipedia.org/
