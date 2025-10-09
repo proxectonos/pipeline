@@ -178,7 +178,7 @@ def _build_parser():
     )
     fix_new_lines_parser = subparsers.add_parser(
         "fix_new_lines",
-        help="returns all text in the source file that matches the specified target language",
+        help="fixes number of new lines between documents to 3",
     )
     fix_new_lines_parser.add_argument(
         "--path", "-p", required=True, type=str, help="Absolute path to Input file"
