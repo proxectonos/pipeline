@@ -140,7 +140,7 @@ def quelingua_lines(path:str, args:object):
                         if data["text"]:
                             w.write(json.dumps(data, ensure_ascii=False)+'\n')
 
-            elif args.model == "txt":
+            elif args.mode == "txt":
                 result = subprocess.run(
                     ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
                     stdin=i,
