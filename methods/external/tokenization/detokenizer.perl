@@ -28,7 +28,7 @@ $abs_path = dirname(__FILE__);#<ignore-line>
 my $UpperCase = "[A-ZÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÑÇÜ]";#<string>
 my $LowerCase = "[a-záéíóúàèìòùâêîôûñçü]";#<string>
 #my $Punct =  qr/[\.\,\;\«\»\“\”\'\"\‘\’\&\$\#\=\(\)\<\>\!\¡\?\¿\\\[\]\{\}\|\^\*\€\·\¬\…]/;#<string>
-my $Punct =  qr/[\:\,\;\»\”\&\$\=\)\>\!\?\]\}\|\^\€\·\¬\…]/;#<string>
+my $Punct =  qr/[\:\,\;\»\”\’\&\$\=\)\>\!\?\]\}\|\^\€\·\¬\…]/;#<string>
 my $Punct_urls = qr/[\:\/\~]/;#<string>
 my $Punct_open =  qr/[\‘\«\“\(\<\¡\¿\\\[\{\#\*]/;#<string>
 
@@ -78,6 +78,16 @@ sub tokens {
 
 		#print STDERR "1#$sentence#\n";
 
+
+                ##casos para o inglês: I'm he's, he'd
+		$sentence =~ s/I ([\'\’]) (m|ve|d)(?:\s|$)/I$1$2 /g;
+		$sentence =~ s/([yY]ou|[tT]hey|[wW]e) ([\'\’]) (re|ve|d)(?:\s|$)/$1$2$3 /g;
+		$sentence =~ s/([sS]he|[hH]e) ([\'\’]) (s|ve|d)(?:\s|$)/$1$2$3 /g;
+		$sentence =~ s/ ([\'\’]) s(?:\s|$|\.)/$1s /g;
+		$sentence =~ s/ ([\'\’]) t(?:\s|$|\.)/$1t /g;
+		$sentence =~ s/ ([\'\’]) ll(?:\s|$|\.)/$1ll /g;
+		#print STDERR "#$sentence#\n";
+		
 	        $sentence =~ s/\" ([^\"]+) \"/\"$1\"/g;
 		$sentence =~ s/\' ([^\']+) \'/\'$1\'/g;
                 $sentence =~ s/\' ([^\’]+) \’/\'$1\’/g;
@@ -229,3 +239,4 @@ sub Trim {
 
   return $x;
 }
+

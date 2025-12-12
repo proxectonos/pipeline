@@ -4,3 +4,4 @@ wcwidth==0.2.6
 emoji
 datasketch==1.6.4
 pyplexity
+pandas

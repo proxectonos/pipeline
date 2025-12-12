@@ -22,6 +22,9 @@ then
   echo "Running filter_lang..."
   python3 main.py filter_lang --filter_results_by_lang gl -p $fullpath_without_ext"_encoded_deduplicated_pyplexity.jsonl" -o  $fullpath_without_ext"_encoded_deduplicated_pyplexity_quelingua.jsonl"
 
+  echo "Running normalization..."
+  python3 main.py normalize --mode jsonl --path  $fullpath_without_ext"_encoded_deduplicated_pyplexity_quelingua.jsonl" --o  $fullpath_without_ext"_encoded_deduplicated_pyplexity_quelingua_normalized.txt" --no-detokenize
+
 else
   echo "Running main.py with arguments: $@"
   python3 main.py "$@"

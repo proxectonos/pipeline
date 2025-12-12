@@ -7,6 +7,7 @@ from methods.encoder.fixer import encoding_fixer
 from inspect import getmembers, isfunction
 from methods.formatter import main as formatter
 from methods import subprocesses
+from methods.normalize import extract_rules, process_file
 import codecs
 from multiprocessing import Process
 from pathlib import Path
@@ -327,6 +328,30 @@ def _build_parser():
     )
     pyplexity_parser.add_argument("pyplexity_args", nargs=argparse.REMAINDER)
 
+    normalize_parser = subparsers.add_parser(
+        "normalize", help="normalize galician language text files", parents=[base_parser]
+    )
+    normalize_parser.add_argument(
+        "--path", "-p", required=True, type=str, help="Absolute path to Input file"
+    )
+    normalize_parser.add_argument(
+        "-o", "--output", type=str, required=True, help="output file absolute path"
+    )
+    normalize_parser.add_argument(
+        "--detokenize",
+        type=bool,
+        action=argparse.BooleanOptionalAction,
+        help="detokenize the text before normalization",
+        default=False,
+    )
+    normalize_parser.add_argument(
+        "--jsonl_field",
+        type=str,
+        help="if input is jsonl, specify the field to normalize",
+        default="text",
+        required=False,
+    )
+
     return parser
 
 
@@ -448,13 +473,15 @@ def parallelize(file, args):
     global action
     global lang
     path = os.path.abspath(file)
-    if action == "filter_lang":
+    if args.action == "filter_lang":
         # subprocesses.quelingua(text=path, _type="whole")
         subprocesses.quelingua_lines(path=path, args=args)
-    elif action == "pyplexity":
+    elif args.action == "pyplexity":
         print("Calculating perplexity", end=' ')
         # print(f'python3 {dir_path}/external/pyplexity/pyplexity.py  {path} {args.pyplexity_args}')
         subprocesses.pyplexity(path=path, args=args)
+    elif args.action == "normalize":
+        process_file(txt=path, sheets=extract_rules("./data/normalization.xlsx"), detokenize=args.detokenize, output=f"{file}_p", mode=args.mode, jsonl_field=args.jsonl_field)
     else:  # line by line
         with open(f"{file}_p", "w+", encoding="utf-8") as prd:
             with open(file, "r+b") as path_file:
@@ -527,12 +554,12 @@ def run():
     elif action == "deduplication":
         deduplicate.run(args)
         sys.exit()
-        
+
     else:  # só para processos que não precisam ter o ficheiro inteiro em memória
         _split_into_files(args=args, num_files=NUM_FILES, extension=extension)
         files = glob.glob(f"./temp/*{extension}")
         processes = []
-        print(f"Processing files in parallel")
+        print(f"Processing {len(files)} smaller files in parallel")
         for file in files:
             proc = Process(
                 target=parallelize,
