@@ -6,6 +6,11 @@ import os
 from pyplexity import PerplexityModel, PerplexityProcessor
 from pyplexity.tag_remover import HTMLTagRemover
 import tqdm
+import logging 
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -24,7 +29,6 @@ def read_file_line_by_line(file):
     with open(file, "r", encoding='utf-8') as f:
         for line in f:
             yield line
-
 
 
 def mt_quelingua(args:object):
@@ -200,7 +204,6 @@ def quelingua(text: str, _type: str = "lines"):
         )
         return result.stdout.decode("utf-8").strip()
 
-
 def tokenizer_paulo(text: str):
     echo_sentence = subprocess.Popen(["echo", f"{text}"], stdout=subprocess.PIPE)
     result = subprocess.run(
@@ -235,7 +238,23 @@ def detokenizer_paulo(text: str):
             f"unexpected return code {result.returncode} from subprocess {result}"
         )
 
-
+def transliterate_port2gal(text: str):
+    echo_sentence = subprocess.Popen(["echo", f"{text}"], stdout=subprocess.PIPE)
+    result = subprocess.run(
+        [
+            "perl",
+            f"{dir_path}/external/port2gal/port2gal.perl",
+        ],
+        stdin=echo_sentence.stdout,
+        stdout=subprocess.PIPE,
+    )
+    if result.returncode == 0:
+        logging.debug(f"Transliterated {text} to {result.stdout.decode('utf-8').strip()}")
+        return result.stdout.decode("utf-8").strip()
+    else:
+        raise Exception(
+            f"unexpected return code {result.returncode} from subprocess {result}"
+        )
 if __name__ == "__main__":
     print(quelingua(text="nada pois nada fillo nada."))
     print(detokenizer_paulo(text="nada pois nada fillo nada."))

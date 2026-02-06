@@ -14,8 +14,15 @@ RUN \
 
 WORKDIR /pipeline/methods/external
 
-RUN git clone https://github.com/citiususc/pyplexity.git
-RUN git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
+RUN [ -d pyplexity ] && [ "$(ls -A pyplexity 2>/dev/null)" ] || \
+    git clone https://github.com/citiususc/pyplexity.git
+
+RUN [ -d port2gal ] && [ "$(ls -A port2gal 2>/dev/null)" ] || \
+    git clone https://github.com/gamallo/port2gal.git
+
+RUN [ -d quelingua_pipeline-main ] && [ "$(ls -A quelingua_pipeline-main 2>/dev/null)" ] || \
+    git clone https://github.com/gamallo/QueLingua quelingua_pipeline-main
+    
 RUN chmod -R 777 quelingua_pipeline-main
 
 WORKDIR /pipeline/methods/external/pyplexity
