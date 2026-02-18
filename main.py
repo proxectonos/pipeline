@@ -20,7 +20,7 @@ from methods.formatter import main as formatter
 from methods import subprocesses
 from methods.containers import apertium_pt_gl
 from methods.normalize import extract_rules, process_file
-
+from methods.subprocesses import mt_quelingua
 # Import the parser builder
 from cli import build_parser
 
@@ -30,6 +30,11 @@ NUM_FILES = 4
 # --- Execution Handlers ---
 
 def handle_mt_quelingua(args):
+    #mt_quelingua(args.path, args.target, args.oujtput_tag, args.mode, args.field)
+    mt_quelingua(args)
+    sys.exit()
+
+def handle_mt_transliteration(args):
     apertium_pt_gl(args.path, args.output, args.quelingua, args.mode, args.field)
     sys.exit()
 
@@ -130,16 +135,19 @@ def _split_into_files(args, num_files, extension):
 
 def parallelize(file, args):
     action = args.action
-    with open(f"{file}_p", "w", encoding="utf-8") as prd, open(file, "rb") as f:
-        m_m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        for line_b in iter(m_m.readline, b""):
-            line = line_b.decode("utf-8")
-            if action == "tokenizer": line = subprocesses.tokenizer_paulo(line)
-            elif action == "detokenizer": line = subprocesses.detokenizer_paulo(line)
-            elif action == "encoder":
-                line = encoding_fixer(text=line, filtered_categories=args.categories, emojies=args.emojies)
-            prd.write(f"{line}\n")
-        m_m.close()
+    if action == "mt_transliteration":
+        apertium_pt_gl(file, f"{file}_p", args.quelingua, args.mode, args.field)
+    else:  
+        with open(f"{file}_p", "w", encoding="utf-8") as prd, open(file, "rb") as f:
+            m_m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            for line_b in iter(m_m.readline, b""):
+                line = line_b.decode("utf-8")
+                if action == "tokenizer": line = subprocesses.tokenizer_paulo(line)
+                elif action == "detokenizer": line = subprocesses.detokenizer_paulo(line)
+                elif action == "encoder":
+                    line = encoding_fixer(text=line, filtered_categories=args.categories, emojies=args.emojies)
+                prd.write(f"{line}\n")
+            m_m.close()
 
 # --- Main Entry Point ---
 
@@ -152,9 +160,10 @@ def run():
         'jaccard': handle_jaccard,
         'deduplication': handle_deduplication,
         'pipeline': handle_pipeline_task,
-        'mt_transliteration': handle_mt_quelingua,
         'mt_deduplication': handle_mt_deduplication,
-        'normalize': handle_normalizer
+        'normalize': handle_normalizer,
+        'mt_quelingua': handle_mt_quelingua
+        #'mt_transliteration': handle_mt_transliteration,
     }
 
     parser = build_parser(handlers)

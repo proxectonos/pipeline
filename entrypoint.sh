@@ -127,18 +127,94 @@ then
     
     
     echo "Renaming final output files..."
-    mv "${source_without_ext}_encoded_deduplicated_mt_transliterated_normalized${extension}" "${source_without_ext}_final_output${extension}"
-    mv "${target_without_ext}_encoded_deduplicated${extension}" "${target_without_ext}_final_output${extension}"
+    mv "${source_without_ext}_encoded_deduplicated_mt_transliterated_normalized${extension}" "gl_final${extension}"
+    mv "${target_without_ext}_encoded_deduplicated${extension}" "${target_without_ext}_final${extension}"
 
     echo "Cleaning up intermediate files..."
     rm -f "${source_without_ext}_encoded${extension}"
     rm -f "${target_without_ext}_encoded${extension}"
+    rm -f "${source_without_ext}_encoded_deduplicated${extension}"
+    rm -f "${target_without_ext}_encoded_deduplicated${extension}"
     rm -f "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}"
   
-    echo "MT pipeline finished."
+    echo "MT  PT to GL-X_parallel pipeline finished."
+
+elif [ "$1" = "mt_pipeline" ]
+then
+    echo "Running MT GL-X pipeline with arguments: $@"
+
+    if [ -z "$4" ]; then
+      echo "Error: Format parameter is required. Only 'jsonl' and 'txt' are supported."
+      exit 1
+    fi
+    
+    if [ "$4" = "jsonl" ]; then
+      extension=".jsonl"
+    elif [ "$4" = "txt" ]; then
+      extension=".txt"
+    else
+      echo "Error: Unsupported file extension '$4'. Only 'jsonl' and 'txt' are supported."
+      exit 1
+    fi
+
+    sourcepath=$(dirname "$2")
+    sourcename=$(basename "$2" "$extension")
+    source_without_ext="$sourcepath/$sourcename"
+
+    targetpath=$(dirname "$3")
+    targetname=$(basename "$3" "$extension")
+    target_without_ext="$targetpath/$targetname"
+
+    if [ "$4" = "jsonl" ] && [ -z "$5" ]; then
+      echo "Error: Field parameter is required for jsonl format."
+      echo "Please specify the text field inside the jsonl file (e.g., 'txt', 'content', etc.):"
+      read -r field_name
+      if [ -z "$field_name" ]; then
+        echo "Error: No field specified. Exiting."
+        exit 1
+      fi
+      field="$field_name"
+    else
+      field="$5"
+    fi
+
+    echo "extension set to $extension"
+    echo "Starting MT pipeline for GL-X parallel corpora..."
+    echo "files: $2 (source), $3 (target), format: $4, field: $field"
+    
+    echo "Running encoder on source file..."
+    python3 "$SCRIPT_DIR/main.py" encoder -p "$2" -o "${source_without_ext}_encoded${extension}" -m "$4" 
+    echo "Running encoder on target file..."
+    python3 "$SCRIPT_DIR/main.py" encoder -p "$3" -o "${target_without_ext}_encoded${extension}" -m "$4"
+
+    echo "Running parallel files deduplication..."
+    if [ "$4" = "jsonl" ]; then
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4" --field "$field"
+    else
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4"
+    fi
+
+    echo "Running quelingua language filtering using SOURCE file..."
+    if [ "$4" = "jsonl" ]; then
+      python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" --field "$field" -cl gl -ot "_quelingua"
+    else
+      python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" -cl gl -ot "_quelingua"
+    fi
+
+    echo "Running normalization on the new GL file..."
+    if [ "$4" = "jsonl" ]; then
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_encoded_deduplicated_quelingua${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --jsonl_field "$field" --no-detokenize
+    else
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_encoded_deduplicated_quelingua${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --no-detokenize
+    fi
+    
+    echo "Renaming final output files..."
+    mv "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" "${source_without_ext}_final${extension}"
+    mv "${target_without_ext}_encoded_deduplicated${extension}" "${target_without_ext}_final${extension}"
+
+    echo "MT GL-X parallel pipeline finished."
 
 else
   echo "Running "$SCRIPT_DIR/main.py" with arguments: $@"
   python3 "$SCRIPT_DIR/main.py" "$@"
 fi
-

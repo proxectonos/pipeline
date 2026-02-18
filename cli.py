@@ -21,15 +21,15 @@ def build_parser(handlers):
     parser.add_argument("--eol", help="convert EOL to linux format", action=argparse.BooleanOptionalAction)
 
     subparsers = parser.add_subparsers(dest="action", help="choose one")
-    """
-        # 1. MT Quelingua
-        p = subparsers.add_parser("mt_quelingua", parents=[base_parser])
-        p.add_argument("-ot", "--output_tag", type=str, required=True)
-        p.add_argument("-s", "--source", type=str, required=True)
-        p.add_argument("-t", "--target", type=str, required=True)
-        p.add_argument("-cl", "--correct_lang_source", type=str, required=True)
-        p.set_defaults(func=handlers['mt_quelingua'])
-    """
+
+    # 1. MT Quelingua
+    p = subparsers.add_parser("mt_quelingua", parents=[base_parser])
+    p.add_argument("-s", "--source", type=str, required=True)
+    p.add_argument("-t", "--target", type=str, required=True)
+    p.add_argument("-cl", "--correct_lang_source", type=str, required=True)
+    p.add_argument("-ot", "--output_tag", type=str, required=False, default="_quelingua")
+    p.set_defaults(func=handlers['mt_quelingua'])
+
     # 2. Formatter
     p = subparsers.add_parser("formatter", parents=[base_parser])
     p.add_argument("-o", "--output", type=str, required=True)
@@ -39,7 +39,7 @@ def build_parser(handlers):
     p.set_defaults(func=handlers['formatter'])
 
     # 3. Pipeline Tasks
-    pipeline_cmds = ["encoder", "tokenizer", "detokenizer", "filter_lang", "pyplexity"]
+    pipeline_cmds = ["encoder", "tokenizer", "detokenizer", "filter_lang", "pyplexity", "mt_transliteration"]
     for cmd in pipeline_cmds:
         p = subparsers.add_parser(cmd, parents=[base_parser])
         p.add_argument("--path", "-p", required=True)
@@ -58,7 +58,11 @@ def build_parser(handlers):
             p.add_argument("-pl", "--perpl_limit", type=int, default=2000)
             p.add_argument("-r", "--remove_low_scores", action=argparse.BooleanOptionalAction, default=True)
             p.add_argument("pyplexity_args", nargs=argparse.REMAINDER)
-            
+        elif cmd == "mt_transliteration":
+            p.add_argument("-q", "--quelingua", action=argparse.BooleanOptionalAction, default=False)
+            p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
+            #p.set_defaults(func=handlers['mt_transliteration'])
+
         p.set_defaults(func=handlers['pipeline'])
 
     # 4. Direct Tools
@@ -102,11 +106,12 @@ def build_parser(handlers):
     p.add_argument("-d", "--save_duplicates", action=argparse.BooleanOptionalAction, default=False)
     p.set_defaults(func=handlers['mt_deduplication'])
 
-    p = subparsers.add_parser("mt_transliteration", parents=[base_parser])
-    p.add_argument("-p", "--path", required=True)
-    p.add_argument("-o", "--output", required=True)
-    p.add_argument("-q", "--quelingua", action=argparse.BooleanOptionalAction, default=False)
-    p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
-    p.set_defaults(func=handlers['mt_transliteration'])
+    '''    p = subparsers.add_parser("mt_transliteration", parents=[base_parser])
+        p.add_argument("-p", "--path", required=True)
+        p.add_argument("-o", "--output", required=True)
+        p.add_argument("-q", "--quelingua", action=argparse.BooleanOptionalAction, default=False)
+        p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
+        p.set_defaults(func=handlers['mt_transliteration'])
+    '''
 
     return parser

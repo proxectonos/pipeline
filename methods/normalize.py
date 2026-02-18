@@ -146,7 +146,6 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
     def stream_lines(path):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                print(f"Streaming line: {line.strip()}")
                 yield line.strip()
 
     # Count lines for the progress bar without loading them all
@@ -165,7 +164,6 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
 
         for res in results:
             if res and res.strip(): 
-                print(res)
                 out.write(res.strip()+"\n")
 
 def process(txt: str, path_regras: str = os.path.join(script_dir, "data/format_bel.xlsx"), detokenize: bool = True):

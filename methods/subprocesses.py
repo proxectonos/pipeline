@@ -7,6 +7,7 @@ from pyplexity import PerplexityModel, PerplexityProcessor
 from pyplexity.tag_remover import HTMLTagRemover
 import tqdm
 import logging 
+from pathlib import Path
 
 
 # Configure logging
@@ -40,18 +41,22 @@ def mt_quelingua(args:object):
     #write the lines that do not match to a file with the name provided in args.output
     src_file = args.source
     tgt_file = args.target
+    src_base = Path(args.source).with_suffix('')
+    tgt_base = Path(args.target).with_suffix('')
+
     correct_lang = args.correct_lang_source
     if args.mode != 'txt':
         raise Exception("Not implemented yet. Only txt files are supported for MT parallel dataset processing ")
-    
     with open(src_file, 'r', encoding='utf-8') as s:
         len_src = len(s.readlines())
     
-    with open(f'{src_file}{args.output_tag}', 'w+', encoding='utf-8') as s, open(f'{tgt_file}{args.output_tag}', 'w+', encoding='utf-8') as t, open(f'{src_file}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_src, open(f'{tgt_file}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_tgt:
+    logging.info(f"Processing {len_src} lines from {src_file} and {tgt_file}")
+    
+    with open(f'{src_base}{args.output_tag}', 'w+', encoding='utf-8') as s, open(f'{tgt_base}{args.output_tag}', 'w+', encoding='utf-8') as t, open(f'{src_base}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_src, open(f'{tgt_base}{args.output_tag}_mismatched', 'w+', encoding='utf-8') as m_tgt:
         src_file_generator = read_file_line_by_line(src_file)
         tgt_file_generator = read_file_line_by_line(tgt_file)
 
-        for src_line, tgt_line in tqdm.tqdm(zip(src_file_generator, tgt_file_generator), total=len_src):
+        for idx, (src_line, tgt_line) in enumerate(tqdm.tqdm(zip(src_file_generator, tgt_file_generator), total=len_src)):
             src_result = subprocess.run(
                 ["bash", f"{dir_path}/external/quelingua_pipeline-main/quelingua_lines"],
                 input=src_line,
@@ -68,12 +73,17 @@ def mt_quelingua(args:object):
             '''
             src_lang_tag = src_result.stdout.strip().split('\t')[-1]
             #tgt_lang_tag = tgt_result.stdout.strip().split('\t')[-1]
+            logging.debug(f"Line {idx}: source language tag = {src_lang_tag.strip()}")
+            
             if src_lang_tag.strip().lower() != correct_lang.lower():
+                logging.debug(f"Line {idx}: language mismatch (expected {correct_lang}, got {src_lang_tag.strip()})")
                 m_src.write(src_line)
                 m_tgt.write(tgt_line)
             else:
                 s.write(src_line)
                 t.write(tgt_line)
+    
+    logging.info(f"Finished processing. Output written to {src_base}{args.output_tag} and {tgt_base}{args.output_tag}")
 
 def pyplexity(path: str, args:list):
 
