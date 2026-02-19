@@ -9,8 +9,7 @@ from multiprocessing import Process
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tqdm import tqdm
-
-# Import your method modules
+import uuid
 from methods.deduplicate import deduplicate
 from methods.deduplicate.deduplicate_mt import parallel_deduplicate
 from methods.jaccardsimilarity_deduplication import jaccard_deduplicate
@@ -21,11 +20,11 @@ from methods import subprocesses
 from methods.containers import apertium_pt_gl
 from methods.normalize import extract_rules, process_file
 from methods.subprocesses import mt_quelingua
-# Import the parser builder
 from cli import build_parser
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
 NUM_FILES = 4
+TEMP_DIR = f"{file_dir}/temp_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 # --- Execution Handlers ---
 
@@ -79,7 +78,7 @@ def handle_pipeline_task(args):
         raise ValueError("Unsupported mode. Use 'txt' or 'jsonl'.")
 
     _split_into_files(args=args, num_files=NUM_FILES, extension=extension)
-    files = glob.glob(f"{file_dir}/temp/*{extension}")
+    files = glob.glob(f"{TEMP_DIR}/*{extension}")
 
     processes = [Process(target=parallelize, args=(f, args)) for f in files]
     for p in processes: p.start()
@@ -115,7 +114,7 @@ def split_file_chunk(mm, start, lines_to_write, output_file, pbar, extension):
         return mm.tell()
 
 def _split_into_files(args, num_files, extension):
-    Path(f"{file_dir}/temp/").mkdir(parents=True, exist_ok=True)
+    Path(f"{TEMP_DIR}").mkdir(parents=True, exist_ok=True)
     with open(args.path, "r", encoding="utf-8", errors="ignore") as f:
         total_lines = sum(1 for _ in f)
     
@@ -129,7 +128,7 @@ def _split_into_files(args, num_files, extension):
                 pbar = tqdm(total=total_lines, desc="Splitting")
                 for i in range(num_files):
                     count = lpf + (1 if i < rem else 0)
-                    out = f"{file_dir}/temp/{i}{extension}"
+                    out = f"{TEMP_DIR}/{i}{extension}"
                     start = ex.submit(split_file_chunk, mm, start, count, out, pbar, extension).result()
                 pbar.close()
 
@@ -165,25 +164,26 @@ def run():
         'mt_quelingua': handle_mt_quelingua
         #'mt_transliteration': handle_mt_transliteration,
     }
+    try:
+        parser = build_parser(handlers)
+        args = parser.parse_args()
 
-    parser = build_parser(handlers)
-    args = parser.parse_args()
+        if not args.action:
+            parser.print_help()
+            return
 
-    if not args.action:
-        parser.print_help()
-        return
+        if os.path.exists(f"{file_dir}/temp"): shutil.rmtree(f"{file_dir}/temp")
+        if args.eol: args.path = convert_to_lf(args.path)
 
-    if os.path.exists(f"{file_dir}/temp"): shutil.rmtree(f"{file_dir}/temp")
-    if args.eol: args.path = convert_to_lf(args.path)
-
-    # Execute the handler associated with the sub-command
-    if hasattr(args, "func"):
-        args.func(args)
+        # Execute the handler associated with the sub-command
+        if hasattr(args, "func"):
+            args.func(args)
 
     # Cleanup
-    if os.path.exists(f"{file_dir}/temp"): shutil.rmtree(f"{file_dir}/temp")
-    for f in os.listdir(file_dir):
-        if f.startswith("__tmp_"): os.remove(f"{file_dir}/{f}")
+    finally:
+        if os.path.exists(f"{TEMP_DIR}"): shutil.rmtree(f"{TEMP_DIR}")
+        for f in os.listdir(file_dir):
+            if f.startswith("__tmp_"): os.remove(f"{file_dir}/{f}")
 
 if __name__ == "__main__":
     run()
