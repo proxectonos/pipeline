@@ -9,7 +9,7 @@ temp/
 test*.txt
 # C extensions
 *.so
-
+temp_*/
 # Distribution / packaging
 .Python
 build/

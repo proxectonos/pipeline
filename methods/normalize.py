@@ -42,18 +42,34 @@ def read_file(path: str = os.path.join(script_dir, "data/format_bel.xlsx")) -> d
     sheets = {sheet_name: pd.read_excel(xls, sheet_name) for sheet_name in xls.sheet_names}
     return sheets
 
-def extract_rules(sheets: str, bel:bool=False) -> dict:
-    logging.info(f"extracting normalization rules from file {sheets}")
-    sheets = read_file(sheets)
+def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> dict:
+    """Read normalization rules from an Excel file and compile them.
+
+    Returns a dict with keys: 'error', 'RAG_fc', 'all', 'exact', 'transform'.
+    - The first four keys contain sets of compiled (pattern, replacement) tuples.
+    - 'transform' is always returned as a pandas DataFrame (possibly empty)
+      so callers can safely call DataFrame methods like `iterrows()`.
+    """
+    logging.info(f"extracting normalization rules from file {sheets_path}")
+    sheets = read_file(sheets_path)
     error_patterns = {}
-    error_patterns["error"] = set(compile_patterns(sheets["error"]))
-    error_patterns["RAG_fc"] = set(compile_patterns(sheets["RAG_fc"]))
-    error_patterns["all"] = set(compile_patterns(sheets["all"]))
-    #remove potential duplicates
-    error_patterns["exact"] = set(compile_patterns(sheets["exact"]))
-    if bel:
-        error_patterns["transform"] = sheets["transform"]
-        
+    error_patterns["error"] = set(compile_patterns(sheets.get("error", pd.DataFrame())))
+    error_patterns["RAG_fc"] = set(compile_patterns(sheets.get("RAG_fc", pd.DataFrame())))
+    error_patterns["all"] = set(compile_patterns(sheets.get("all", pd.DataFrame())))
+
+    if exact and "exact" in sheets:
+        error_patterns["exact"] = set(compile_patterns(sheets["exact"]))
+    else:
+        error_patterns["exact"] = set()
+
+    # Always provide a DataFrame for 'transform' to keep types consistent.
+    transform_df = sheets.get("transform", pd.DataFrame())
+    if not bel:
+        # If BEL-specific transforms are not requested, return an empty DataFrame
+        # with the same columns (if available) so downstream code can iterate.
+        transform_df = pd.DataFrame(columns=transform_df.columns) if not transform_df.empty else pd.DataFrame()
+
+    error_patterns["transform"] = transform_df
     return error_patterns
 
 def compile_patterns(df: pd.DataFrame) -> list:
@@ -122,7 +138,7 @@ def _process_line_worker(line: str, error_patterns, exact_patterns, transform_df
         sys.stderr.write(f"WORKER ERROR \n{traceback.format_exc()}\n")
         return None
 
-def process_file(input_file: str, sheets: dict, output: str, mode: str,bel:bool=False, exact:bool=False, detokenize: bool = False, jsonl_field:str=None):
+def process_file(input_file: str, sheets: dict, output: str, mode: str, detokenize: bool = False, jsonl_field:str=None):
     logging.info(f"Starting normalization of file {input_file}")
 
     if mode == "jsonl" and jsonl_field is None:
@@ -133,12 +149,8 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str,bel:bool=
     error_patterns = sheets["error"]
     error_patterns.update(sheets["RAG_fc"])
     #error_patterns.update(sheets["all"])
-    if exact:
-        exact_patterns = sheets["exact"]
-    if bel and "transform" in sheets:
-        transform_df = sheets["transform"]
-    else:
-        transform_df = pd.DataFrame(columns=["pattern", "replacement"])
+    exact_patterns = sheets["exact"]
+    transform_df = sheets["transform"]
 
     total_lines = sum(1 for _ in open(input_file, "r", encoding="utf-8"))
     

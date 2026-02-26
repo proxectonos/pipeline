@@ -65,9 +65,9 @@ def handle_mt_deduplication(args):
     sys.exit()
 
 def handle_normalizer(args):
-    process_file(input_file=args.path, sheets=extract_rules(f"{file_dir}/data/normalization.xlsx"), 
+    process_file(input_file=args.path, sheets=extract_rules(f"{file_dir}/data/normalization.xlsx",  bel=args.bel, exact=args.exact), 
                     detokenize=args.detokenize, output=args.output, 
-                    mode=args.mode, jsonl_field=args.jsonl_field, bel=args.bel, exact=args.exact)
+                    mode=args.mode, jsonl_field=args.jsonl_field)
     sys.exit()
 def handle_pipeline_task(args):
     if args.mode == "txt":
