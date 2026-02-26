@@ -71,6 +71,8 @@ def build_parser(handlers):
     p.add_argument("--detokenize", action=argparse.BooleanOptionalAction, default=False)
     p.add_argument("--jsonl_field", action=argparse.BooleanOptionalAction, default=None)
     p.add_argument("-o", "--output", required=True)
+    p.add_argument("-b", "--bel", action=argparse.BooleanOptionalAction ,default=False)
+    p.add_argument("-e", "--exact", action=argparse.BooleanOptionalAction ,default=False)
     p.set_defaults(func=handlers['normalize'])
     
     p = subparsers.add_parser("recoglang", parents=[base_parser])

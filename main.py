@@ -23,7 +23,7 @@ from methods.subprocesses import mt_quelingua
 from cli import build_parser
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
-NUM_FILES = 4
+NUM_FILES = 6
 TEMP_DIR = f"{file_dir}/temp_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 # --- Execution Handlers ---
@@ -67,7 +67,7 @@ def handle_mt_deduplication(args):
 def handle_normalizer(args):
     process_file(input_file=args.path, sheets=extract_rules(f"{file_dir}/data/normalization.xlsx"), 
                     detokenize=args.detokenize, output=args.output, 
-                    mode=args.mode, jsonl_field=args.jsonl_field)
+                    mode=args.mode, jsonl_field=args.jsonl_field, bel=args.bel, exact=args.exact)
     sys.exit()
 def handle_pipeline_task(args):
     if args.mode == "txt":

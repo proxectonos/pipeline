@@ -122,7 +122,7 @@ def _process_line_worker(line: str, error_patterns, exact_patterns, transform_df
         sys.stderr.write(f"WORKER ERROR \n{traceback.format_exc()}\n")
         return None
 
-def process_file(input_file: str, sheets: dict, output: str, mode: str, detokenize: bool = False, jsonl_field:str=None):
+def process_file(input_file: str, sheets: dict, output: str, mode: str,bel:bool=False, exact:bool=False, detokenize: bool = False, jsonl_field:str=None):
     logging.info(f"Starting normalization of file {input_file}")
 
     if mode == "jsonl" and jsonl_field is None:
@@ -132,9 +132,10 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
         
     error_patterns = sheets["error"]
     error_patterns.update(sheets["RAG_fc"])
-    error_patterns.update(sheets["all"])
-    exact_patterns = sheets["exact"]
-    if "transform" in sheets:
+    #error_patterns.update(sheets["all"])
+    if exact:
+        exact_patterns = sheets["exact"]
+    if bel and "transform" in sheets:
         transform_df = sheets["transform"]
     else:
         transform_df = pd.DataFrame(columns=["pattern", "replacement"])
