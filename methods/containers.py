@@ -12,12 +12,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 UNKNOWN_TAG = "[[UNK]]"
 GEN_ERROR_TAG = "[[GEN_ERR]]"
+NO_TRANS = "[[NO_TRANS]]"
 cached_errors = {}
 
 def _catch_apertium_marks(input_path: str, output_path: str):
     """Process file line-by-line to handle large files efficiently."""
     unknown_marks_regex = rf"\[\[UNK\]\]\s*(\p{{L}}+)"
     gen_error_regex = rf"\[\[GEN_ERR\]\]\s*(\p{{L}}+)"
+    no_trans =  rf"\[\[NO_TRANS\]\]\s*(\p{{L}}+)"  
     left_ats = r'(?<=\s|^|["\'!?])@(\p{L}+)'
 
     logging.info(f"Processing file for Apertium marks: {input_path}")
@@ -27,6 +29,9 @@ def _catch_apertium_marks(input_path: str, output_path: str):
             logging.debug(f"Processing line {line_number}: {line.strip()}")
             unknowns = re.findall(unknown_marks_regex, line)
             unknowns += re.findall(left_ats, line)
+            no_trans_words = re.findall(no_trans, line)
+            unknowns += no_trans_words
+
             gen_errors = re.findall(gen_error_regex, line)
             logging.debug(f"Line {line_number}: Found {len(unknowns)} unknowns and {len(gen_errors)} generation errors. {unknowns}")  
             
@@ -34,13 +39,15 @@ def _catch_apertium_marks(input_path: str, output_path: str):
                 if word not in cached_errors:
                     cached_errors[word] = transliterate_port2gal(word)
                 logging.debug(f"Line {line_number}: Transliteration for '{word}' is '{cached_errors[word]}'")
-                line = line.replace(f"{UNKNOWN_TAG}{word}", cached_errors[word])
-
+                line = line.replace(word, cached_errors[word])
+                line = line.replace(f"{NO_TRANS}", "")
+                line = line.replace(f"{UNKNOWN_TAG}", "")
             for gen_err in gen_errors:
                 if gen_err not in cached_errors:
                     cached_errors[gen_err] = transliterate_port2gal(gen_err)
-                line = line.replace(f"{GEN_ERROR_TAG}{gen_err}", cached_errors[gen_err])
-
+                line = line.replace(gen_err, cached_errors[gen_err])
+                line = line.replace(f"{GEN_ERROR_TAG}", "")
+            
             #edge cases @ errors
             line = line.replace("'@", "'")
             line = line.replace('-@', '-')
