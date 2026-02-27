@@ -66,8 +66,7 @@ def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> d
     transform_df = sheets.get("transform", pd.DataFrame())
     if not bel:
         # If BEL-specific transforms are not requested, return an empty DataFrame
-        # with the same columns (if available) so downstream code can iterate.
-        transform_df = pd.DataFrame(columns=transform_df.columns) if not transform_df.empty else pd.DataFrame()
+        transform_df = pd.DataFrame()
 
     error_patterns["transform"] = transform_df
     return error_patterns

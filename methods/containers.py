@@ -1,5 +1,5 @@
 import subprocess
-import re
+import regex as re
 import os
 import logging
 from .subprocesses import transliterate_port2gal
@@ -16,15 +16,17 @@ cached_errors = {}
 
 def _catch_apertium_marks(input_path: str, output_path: str):
     """Process file line-by-line to handle large files efficiently."""
-    unknown_marks_regex = rf"\[\[UNK\]\]\s*([^\W\d_]+)"
-    gen_error_regex = rf"\[\[GEN_ERR\]\]\s*([^\W\d_]+)"
-    
+    unknown_marks_regex = rf"\[\[UNK\]\]\s*(\p{{L}}+)"
+    gen_error_regex = rf"\[\[GEN_ERR\]\]\s*(\p{{L}}+)"
+    left_ats = r'(?<=\s|^|["\'!?])@(\p{L}+)'
+
     logging.info(f"Processing file for Apertium marks: {input_path}")
     
     with open(input_path, "r") as fin, open(output_path, "w") as fout:
         for line_number, line in enumerate(fin, start=1):
             logging.debug(f"Processing line {line_number}: {line.strip()}")
             unknowns = re.findall(unknown_marks_regex, line)
+            unknowns += re.findall(left_ats, line)
             gen_errors = re.findall(gen_error_regex, line)
             logging.debug(f"Line {line_number}: Found {len(unknowns)} unknowns and {len(gen_errors)} generation errors. {unknowns}")  
             
