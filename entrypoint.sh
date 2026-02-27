@@ -194,12 +194,12 @@ then
       python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4"
     fi
 
-    # echo "Running quelingua language filtering using SOURCE file..."
-    # if [ "$4" = "jsonl" ]; then
-    #   python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" --field "$field" -cl gl -ot "_quelingua"
-    # else
-    #   python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" -cl gl -ot "_quelingua"
-    # fi
+     echo "Running quelingua language filtering using SOURCE file..."
+     if [ "$4" = "jsonl" ]; then
+       python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" --field "$field" -cl gl -ot "_quelingua"
+     else
+       python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_encoded_deduplicated${extension}" -t "${target_without_ext}_encoded_deduplicated${extension}" -m "$4" -cl gl -ot "_quelingua"
+     fi
 
     echo "Running normalization on the new GL file..."
     if [ "$4" = "jsonl" ]; then
