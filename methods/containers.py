@@ -41,7 +41,7 @@ def _catch_apertium_marks(input_path: str, output_path: str):
                     cached_errors[gen_err] = transliterate_port2gal(gen_err)
                 line = line.replace(f"{GEN_ERROR_TAG}{gen_err}", cached_errors[gen_err])
 
-            fout.write(line)
+            fout.write(line.replace("http://@www", "http://www")) # Fix for a specific edge case where Apertium might produce an incorrect URL with an extra '@' symbol.
             logging.debug(f"Processed line {line_number}: {line.strip()}")
 
 def _make_temp_file_path(original_path: str) -> str:
