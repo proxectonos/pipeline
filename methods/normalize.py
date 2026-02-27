@@ -53,27 +53,34 @@ def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> d
     logging.info(f"extracting normalization rules from file {sheets_path}")
     sheets = read_file(sheets_path)
     error_patterns = {}
+    logging.info(f"Compiling patterns from DataFrame 'error'")
     error_patterns["error"] = set(compile_patterns(sheets.get("error", pd.DataFrame())))
+    logging.info(f"Compiling patterns from DataFrame  'RAG_fc'")
     error_patterns["RAG_fc"] = set(compile_patterns(sheets.get("RAG_fc", pd.DataFrame())))
-    error_patterns["all"] = set(compile_patterns(sheets.get("all", pd.DataFrame())))
 
     if exact and "exact" in sheets:
+        logging.info("Compiling 'exact' patterns...")
         error_patterns["exact"] = set(compile_patterns(sheets["exact"]))
     else:
         error_patterns["exact"] = set()
 
     # Always provide a DataFrame for 'transform' to keep types consistent.
-    transform_df = sheets.get("transform", pd.DataFrame())
     if not bel:
         # If BEL-specific transforms are not requested, return an empty DataFrame
-        transform_df = pd.DataFrame()
+        # with the same columns (if available) so downstream code can iterate.
+        logging.info("BEL-specific transforms not requested, returning empty DataFrame for 'transform'. 'All' DataFrame not loaded.")
+        transform_df =  pd.DataFrame()
+    else:
+        logging.info(f"Compiling patterns from DataFrames 'transform' and 'all'")
+        transform_df = sheets.get("transform", pd.DataFrame())
+        error_patterns["all"] = set(compile_patterns(sheets.get("all", pd.DataFrame())))
 
     error_patterns["transform"] = transform_df
     return error_patterns
 
 def compile_patterns(df: pd.DataFrame) -> list:
     patterns = []
-    logging.info(f"Compiling patterns from DataFrame with {len(df)} rows")
+    logging.info(f"Compiling {len(df)} rows")
     for index, row in df.iterrows():
         logging.debug(f"Compiling pattern from row {index}: {row[df.columns[0]]} -> {row[df.columns[1]]}")
         row[df.columns[0]] = row[df.columns[0]].strip()
