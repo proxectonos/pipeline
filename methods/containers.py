@@ -14,6 +14,8 @@ UNKNOWN_TAG = "[[UNK]]"
 GEN_ERROR_TAG = "[[GEN_ERR]]"
 NO_TRANS = "[[NO_TRANS]]"
 cached_errors = {}
+hex_pattern = r"[\x01\x02\x03]"
+
 
 def _catch_apertium_marks(input_path: str, output_path: str):
     """Process file line-by-line to handle large files efficiently."""
@@ -28,7 +30,7 @@ def _catch_apertium_marks(input_path: str, output_path: str):
         for line_number, line in enumerate(fin, start=1):
             logging.debug(f"Processing line {line_number}: {line.strip()}")
             unknowns = re.findall(unknown_marks_regex, line)
-            unknowns += re.findall(left_ats, line)
+            #unknowns += re.findall(left_ats, line)
             no_trans_words = re.findall(no_trans, line)
             unknowns += no_trans_words
 
@@ -40,20 +42,23 @@ def _catch_apertium_marks(input_path: str, output_path: str):
                     cached_errors[word] = transliterate_port2gal(word)
                 logging.debug(f"Line {line_number}: Transliteration for '{word}' is '{cached_errors[word]}'")
                 line = line.replace(word, cached_errors[word])
-                line = line.replace(f"{NO_TRANS}", "")
-                line = line.replace(f"{UNKNOWN_TAG}", "")
             for gen_err in gen_errors:
                 if gen_err not in cached_errors:
                     cached_errors[gen_err] = transliterate_port2gal(gen_err)
                 line = line.replace(gen_err, cached_errors[gen_err])
-                line = line.replace(f"{GEN_ERROR_TAG}", "")
-            
+
+
+            line = line.replace(f"{NO_TRANS}", "")
+            line = line.replace(f"{UNKNOWN_TAG}", "")
+            line = line.replace(f"{GEN_ERROR_TAG}", "")
+        
             #edge cases @ errors
             line = line.replace("'@", "'")
             line = line.replace('-@', '-')
             line = line.replace('"@', '"')
             line = line.replace(r"\@", r"\\")
-            line = line.replace("http://@www", "http://www")  
+            line = line.replace("http://@www", "http://www") 
+            line = re.sub(hex_pattern, "", line) 
             fout.write(line) # Fix for a specific edge case where Apertium might produce an incorrect URL with an extra '@' symbol.
             logging.debug(f"Processed line {line_number}: {line.strip()}")
 
