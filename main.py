@@ -138,18 +138,19 @@ def parallelize(file, args):
         apertium_pt_gl(file, f"{file}_p", args.quelingua, args.mode, args.field)
     elif action == "pyplexity":
         subprocesses.pyplexity(file, args)
+    elif action == "filter_lang":
+        quelingua_lines(file, args)
     else:  
         with open(f"{file}_p", "w", encoding="utf-8") as prd, open(file, "rb") as f:
-            if action == "encoder":
-                prd.write(encoding_fixer(text=f.read(), filtered_categories=args.categories, emojies=args.emojies))
-            #line-based methods
-            m_m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-            for line_b in iter(m_m.readline, b""):
-                line = line_b.decode("utf-8")
-                if action == "tokenizer": line = subprocesses.tokenizer_paulo(line)
-                elif action == "detokenizer": line = subprocesses.detokenizer_paulo(line)
-                prd.write(f"{line}\n")
-            m_m.close()
+            if action in ["tokenizer", "detokenizer", "encoder"]:
+                m_m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+                for line_b in iter(m_m.readline, b""):
+                    line = line_b.decode("utf-8")
+                    if action == "tokenizer": line = subprocesses.tokenizer_paulo(line)
+                    elif action == "detokenizer": line = subprocesses.detokenizer_paulo(line)
+                    elif action == "encoder": line = encoding_fixer(text=line, filtered_categories=args.categories, emojies=args.emojies)
+                    prd.write(f"{line}\n")
+                m_m.close()
 
 # --- Main Entry Point ---
 
@@ -164,7 +165,7 @@ def run():
         'pipeline': handle_pipeline_task,
         'mt_deduplication': handle_mt_deduplication,
         'normalize': handle_normalizer,
-        'mt_quelingua': handle_mt_quelingua
+        'mt_quelingua': handle_mt_quelingua,
         #'mt_transliteration': handle_mt_transliteration,
     }
     try:
