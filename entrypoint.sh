@@ -114,9 +114,9 @@ then
 
     echo "Running Apertium MT transliteration and port2gal postprocessing"
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" --field "$field" -q 
+      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" --field "$field" -q 
     else
-      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" -q
+      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" -q
     fi
     echo "Running normalization on the new GL file..."
     if [ "$4" = "jsonl" ]; then
