@@ -1,3 +1,4 @@
+import os
 import argparse
 from inspect import getmembers, isfunction
 from methods import subprocesses
@@ -53,7 +54,8 @@ def build_parser(handlers):
         elif cmd == "filter_lang":
             p.add_argument("-f", "--filter_results_by_lang", default=False)
         elif cmd == "pyplexity":
-            p.add_argument("-pm", "--path_model", default="./models/bigrams_modelo-gl-bigramas-merged.st")
+            default_model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models/bigrams_modelo-gl-bigramas-merged.st")
+            p.add_argument("-pm", "--path_model", default=default_model_path)
             p.add_argument("-s", "--score", action=argparse.BooleanOptionalAction, default=True)
             p.add_argument("-pl", "--perpl_limit", type=int, default=2000)
             p.add_argument("-r", "--remove_low_scores", action=argparse.BooleanOptionalAction, default=True)

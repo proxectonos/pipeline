@@ -114,9 +114,9 @@ then
 
     echo "Running Apertium MT transliteration and port2gal postprocessing"
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" --field "$field" -q 
+      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" --field "$field" -q 
     else
-      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" -q
+      python3 "$SCRIPT_DIR/main.py" mt_transliteration --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}" -m "$4" -q
     fi
     echo "Running normalization on the new GL file..."
     if [ "$4" = "jsonl" ]; then
@@ -129,13 +129,14 @@ then
     echo "Renaming final output files..."
     mv "${source_without_ext}_encoded_deduplicated_mt_transliterated_normalized${extension}" "gl_final${extension}"
     mv "${target_without_ext}_encoded_deduplicated${extension}" "${target_without_ext}_final${extension}"
+    #mv "${target_without_ext}_deduplicated${extension}" "${target_without_ext}_final${extension}"
 
-    echo "Cleaning up intermediate files..."
-    rm -f "${source_without_ext}_encoded${extension}"
-    rm -f "${target_without_ext}_encoded${extension}"
-    rm -f "${source_without_ext}_encoded_deduplicated${extension}"
-    rm -f "${target_without_ext}_encoded_deduplicated${extension}"
-    rm -f "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}"
+    #echo "Cleaning up intermediate files..."
+    #rm -f "${source_without_ext}_encoded${extension}"
+    #rm -f "${target_without_ext}_encoded${extension}"
+    #rm -f "${source_without_ext}_encoded_deduplicated${extension}"
+    #rm -f "${target_without_ext}_encoded_deduplicated${extension}"
+    #rm -f "${source_without_ext}_encoded_deduplicated_mt_transliterated${extension}"
   
     echo "MT  PT to GL-X_parallel pipeline finished."
 
@@ -189,9 +190,9 @@ then
 
     echo "Running parallel files deduplication..."
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4" --field "$field"
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "$2" -t "$3" -m "$4" --field "$field"
     else
-      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4"
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "$2" -t "$3" -m "$4"
     fi
 
      echo "Running quelingua language filtering using SOURCE file..."
@@ -203,14 +204,15 @@ then
 
     echo "Running normalization on the new GL file..."
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --jsonl_field "$field" --no-detokenize
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --jsonl_field "$field" --no-detokenize
     else
-      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_encoded_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --no-detokenize
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --no-detokenize
     fi
     
     echo "Renaming final output files..."
     mv "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" "${source_without_ext}_final${extension}"
     mv "${target_without_ext}_encoded_deduplicated${extension}" "${target_without_ext}_final${extension}"
+    #mv "${target_without_ext}_deduplicated${extension}" "${target_without_ext}_final${extension}"
 
     echo "MT GL-X parallel pipeline finished."
 

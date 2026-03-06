@@ -37,6 +37,25 @@ def _detokenizer(text: str) -> str:
     )
     return result.stdout.strip()
 
+def _detokenizer_batch(lines: list[str]) -> list[str]:
+    if not lines:
+        return []
+    input_str = "\n".join(lines) + "\n"
+    result = subprocess.run(
+        [
+            "perl",
+            f"{script_dir}/detokenizer.perl",
+        ],
+        input=input_str,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    output_str = result.stdout.strip()
+    if not output_str:
+        return []
+    return output_str.split("\n")
+
 def read_file(path: str = os.path.join(script_dir, "data/format_bel.xlsx")) -> dict:
     xls = pd.ExcelFile(path, engine='openpyxl')
     sheets = {sheet_name: pd.read_excel(xls, sheet_name) for sheet_name in xls.sheet_names}
@@ -116,33 +135,44 @@ _transform_df: pd.DataFrame | None = None
 
 def _init_worker(error_patterns, exact_patterns, transform_df, detokenize, jsonl_field):
     global _error_patterns, _exact_patterns, _transform_df, _detokenize, _jsonl_field
-    logging.info(f"Worker initialized with detokenize={detokenize} and jsonl_field={jsonl_field}")
     _error_patterns = error_patterns
     _exact_patterns = exact_patterns
     _transform_df = transform_df
     _detokenize = detokenize
     _jsonl_field = jsonl_field
 
-def _process_line_worker(line: str, error_patterns, exact_patterns, transform_df, detokenize, jsonl_field) -> str:
+def _chunk_worker(chunk: list[str]) -> list[str]:
+    results = []
     try:
-        if not jsonl_field:
-            if detokenize:
-                line = _detokenizer(line)
-            txt_words = parse_replace(error_patterns, text=line)
-            txt_words = parse_replace(exact_patterns, text=txt_words)
-            return replace_patterns(transform_df, text=txt_words)
-        else:
-            data = json.loads(line)
-            content = data.get(jsonl_field, "")
-            if detokenize:
-                content = _detokenizer(content)
-            txt_words = parse_replace(error_patterns, text=content)
-            txt_words = parse_replace(exact_patterns, text=txt_words)
-            data[jsonl_field] = replace_patterns(transform_df, text=txt_words)
-            return json.dumps(data, ensure_ascii=False)
+        # Batch detokenize if requested and not JSON mode
+        if not _jsonl_field and _detokenize:
+            chunk = _detokenizer_batch(chunk)
+            
+        for line in chunk:
+            try:
+                if not _jsonl_field:
+                    txt_words = parse_replace(_error_patterns, text=line)
+                    txt_words = parse_replace(_exact_patterns, text=txt_words)
+                    res = replace_patterns(_transform_df, text=txt_words)
+                    results.append(res)
+                else:
+                    data = json.loads(line)
+                    content = data.get(_jsonl_field, "")
+                    if _detokenize:
+                        content = _detokenizer(content) # Fallback to single text detokenization for JSON fields
+                    txt_words = parse_replace(_error_patterns, text=content)
+                    txt_words = parse_replace(_exact_patterns, text=txt_words)
+                    data[_jsonl_field] = replace_patterns(_transform_df, text=txt_words)
+                    results.append(json.dumps(data, ensure_ascii=False))
+            except Exception:
+                sys.stderr.write(f"WORKER ERROR ON LINE: {line}\n{traceback.format_exc()}\n")
+                results.append(None)
     except Exception:
-        sys.stderr.write(f"WORKER ERROR \n{traceback.format_exc()}\n")
-        return None
+        sys.stderr.write(f"WORKER ERROR ON CHUNK \n{traceback.format_exc()}\n")
+        # Return Nones to signify failure across the chunk but preserve output length
+        results.extend([None for _ in chunk])
+        
+    return results
 
 def process_file(input_file: str, sheets: dict, output: str, mode: str, detokenize: bool = False, jsonl_field:str=None):
     logging.info(f"Starting normalization of file {input_file}")
@@ -158,10 +188,16 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
     exact_patterns = sheets["exact"]
     transform_df = sheets["transform"]
 
-    total_lines = sum(1 for _ in open(input_file, "r", encoding="utf-8"))
-    
-    #lines = open(input_file, "r", encoding="utf-8")
-      # Use a generator to avoid loading file into memory
+    def chunk_generator(iterable, chunk_size):
+        chunk = []
+        for item in iterable:
+            chunk.append(item)
+            if len(chunk) == chunk_size:
+                yield chunk
+                chunk = []
+        if chunk:
+            yield chunk
+
     def stream_lines(path):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
@@ -172,19 +208,20 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
 
     n_jobs = max(cpu_count() - 2, 1)
 
-
     with open(output, "w", encoding="utf-8") as out:
+        chunk_size = 500
+        total_chunks = (total_lines + chunk_size - 1) // chunk_size
 
-        results = Parallel(n_jobs=n_jobs, backend="multiprocessing", batch_size=50)(
-            delayed(_process_line_worker)(
-                line, error_patterns, exact_patterns, transform_df, detokenize, jsonl_field
-            ) for line in stream_lines(input_file)
-        )
-
-        for res in results:
-            if res and res.strip(): 
-                out.write(res.strip()+"\n")
-
+        with Pool(processes=n_jobs, initializer=_init_worker, initargs=(error_patterns, exact_patterns, transform_df, detokenize, jsonl_field)) as pool:
+            results = pool.imap(_chunk_worker, chunk_generator(stream_lines(input_file), chunk_size))
+            
+            for chunk_res in tqdm.tqdm(results, total=total_chunks, desc=f"Normalizing chunks"):
+                for res in chunk_res:
+                    if res is not None: 
+                        out.write(res.strip()+"\n")
+                    else:
+                        out.write("\n")
+                        
 def process(txt: str, path_regras: str = os.path.join(script_dir, "data/format_bel.xlsx"), detokenize: bool = True):
     #process one line
     sheets = read_file(path_regras)

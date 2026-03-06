@@ -2,7 +2,7 @@ import subprocess
 import regex as re
 import os
 import logging
-from .subprocesses import transliterate_port2gal
+from .subprocesses import transliterate_port2gal, transliterate_port2gal_batch
 import json
 import sys 
 
@@ -16,55 +16,67 @@ NO_TRANS = "[[NO_TRANS]]"
 cached_errors = {}
 hex_pattern = r"[\x01\x02\x03]"
 
+def replacer(match):
+    tag = match.group(1)
+    word = match.group(2)
+    
+    if word not in cached_errors:
+        cached_errors[word] = transliterate_port2gal(word)
+    return cached_errors[word]
+
 
 def _catch_apertium_marks(input_path: str, output_path: str):
-    """Process file line-by-line to handle large files efficiently."""
-    unknown_marks_regex = rf"\[\[UNK\]\]\s*(\p{{L}}+)"
-    gen_error_regex = rf"\[\[GEN_ERR\]\]\s*(\p{{L}}+)"
-    no_trans =  rf"\[\[NO_TRANS\]\]\s*(\p{{L}}+)"  
-    left_ats = r'(?<=\s|^|["\'!?])@(\p{L}+)'
-
+    """Process file line-by-line for optimal performance."""
     logging.info(f"Processing file for Apertium marks: {input_path}")
     
-    with open(input_path, "r") as fin, open(output_path, "w") as fout:
-        for line_number, line in enumerate(fin, start=1):
-            logging.debug(f"Processing line {line_number}: {line.strip()}")
-            unknowns = re.findall(unknown_marks_regex, line)
-            #unknowns += re.findall(left_ats, line)
-            no_trans_words = re.findall(no_trans, line)
-            unknowns += no_trans_words
-
-            gen_errors = re.findall(gen_error_regex, line)
-            logging.debug(f"Line {line_number}: Found {len(unknowns)} unknowns and {len(gen_errors)} generation errors. {unknowns}")  
+    # Combine all error patterns into single regex
+    pattern = re.compile(r'\[\[(UNK|GEN_ERR|NO_TRANS)\]\]\s*(\p{L}+)')
+    
+    # Pass 1: Find missing words line by line
+    words_to_translit = set()
+    with open(input_path, "r", encoding="utf-8") as fin:
+        for line in fin:
+            for m in pattern.finditer(line):
+                if m.group(2) not in cached_errors:
+                    words_to_translit.add(m.group(2))
+                    
+    words_to_translit = list(words_to_translit)
+    if words_to_translit:
+        try:
+            logging.info(f"Batch transliterating {len(words_to_translit)} words...")
+            transliterated = transliterate_port2gal_batch(words_to_translit)
+            print(transliterated)
+            if len(transliterated) == len(words_to_translit):
+                for w, tw in zip(words_to_translit, transliterated):
+                    cached_errors[w] = tw
+            else:
+                logging.warning(f"Batch size mismatch: expected {len(words_to_translit)}, got {len(transliterated)}. Falling back to element-wise.")
+        except Exception as e:
+            logging.warning(f"Batch transliteration failed: {e}. Falling back to element-wise.")
             
-            for word in unknowns:
-                if word not in cached_errors:
-                    cached_errors[word] = transliterate_port2gal(word)
-                logging.debug(f"Line {line_number}: Transliteration for '{word}' is '{cached_errors[word]}'")
-                line = line.replace(word, cached_errors[word])
-            for gen_err in gen_errors:
-                if gen_err not in cached_errors:
-                    cached_errors[gen_err] = transliterate_port2gal(gen_err)
-                line = line.replace(gen_err, cached_errors[gen_err])
-
-
-            line = line.replace(f"{NO_TRANS}", "")
-            line = line.replace(f"{UNKNOWN_TAG}", "")
-            line = line.replace(f"{GEN_ERROR_TAG}", "")
-        
-            #edge cases @ errors
-            line = line.replace("'@", "'")
-            line = line.replace('-@', '-')
-            line = line.replace('"@', '"')
-            line = line.replace(r"\@", r"\\")
-            line = line.replace("http://@www", "http://www") 
-            line = re.sub(hex_pattern, "", line) 
-            fout.write(line) # Fix for a specific edge case where Apertium might produce an incorrect URL with an extra '@' symbol.
-            logging.debug(f"Processed line {line_number}: {line.strip()}")
+    # Pass 2: Replace and write line by line
+    with open(input_path, "r", encoding="utf-8") as fin, \
+         open(output_path, "w", encoding="utf-8") as fout:
+            res = fin.read()
+            res = pattern.sub(replacer, res)
+            res = res.replace("[[NO_TRANS]]", "")
+            res = res.replace("[[UNK]]", "")
+            res = res.replace("[[GEN_ERR]]", "")
+            res = res.replace("'@", "'")
+            res = res.replace('-@', '-')
+            res = res.replace('"@', '"')
+            res = res.replace(r"\@", r"\\")
+            res = res.replace("http://@www", "http://www") 
+            res = re.sub(r' +([,\.!\?;:\)\]\}])', r'\1', res)  # remove space before punctuation
+            res = re.sub(r' {2,}', ' ', res)  # collapse multiple spaces
+            res = re.sub(hex_pattern, "", res) 
+            fout.write(res)
+            
+    logging.debug(f"Apertium marks post-processing complete for {input_path}, saved to {output_path}")
 
 def _make_temp_file_path(original_path: str) -> str:
 
-    temp_input = "temp_apertium_input.txt"
+    temp_input = f"temp_apertium_input_{os.getpid()}_{id(original_path)}.txt"
     with open(input_file_path, "r", encoding="utf-8") as fin, open(temp_input, "w", encoding="utf-8") as temp:
         for line in fin:
             try:

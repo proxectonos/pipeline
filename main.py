@@ -23,7 +23,7 @@ from methods.subprocesses import mt_quelingua
 from cli import build_parser
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
-NUM_FILES = 6
+NUM_FILES = 10
 TEMP_DIR = f"{file_dir}/temp_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 # --- Execution Handlers ---
@@ -136,15 +136,18 @@ def parallelize(file, args):
     action = args.action
     if action == "mt_transliteration":
         apertium_pt_gl(file, f"{file}_p", args.quelingua, args.mode, args.field)
+    elif action == "pyplexity":
+        subprocesses.pyplexity(file, args)
     else:  
         with open(f"{file}_p", "w", encoding="utf-8") as prd, open(file, "rb") as f:
+            if action == "encoder":
+                prd.write(encoding_fixer(text=f.read(), filtered_categories=args.categories, emojies=args.emojies))
+            #line-based methods
             m_m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
             for line_b in iter(m_m.readline, b""):
                 line = line_b.decode("utf-8")
                 if action == "tokenizer": line = subprocesses.tokenizer_paulo(line)
                 elif action == "detokenizer": line = subprocesses.detokenizer_paulo(line)
-                elif action == "encoder":
-                    line = encoding_fixer(text=line, filtered_categories=args.categories, emojies=args.emojies)
                 prd.write(f"{line}\n")
             m_m.close()
 

@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+
 def mt_assert_parallel(src_file: str, tgt_file: str):
     #check that both files have the same number of lines 
     with open(src_file, "r", encoding='utf-8') as src:
@@ -87,41 +88,58 @@ def mt_quelingua(args:object):
 
 def pyplexity(path: str, args:list):
 
-    if not args.score and not args.html_cleaning and not args.text_cleaning:
+    if not getattr(args, 'score', False) and \
+       not getattr(args, 'html_cleaning', False) and \
+       not getattr(args, 'text_cleaning', False):
         raise Exception("No action specified for pyplexity: score, html or text")
 
     model = PerplexityModel.from_str(args.path_model)
     text_processor = PerplexityProcessor(perpl_model=model, perpl_limit=args.perpl_limit)
     removed_data = []
+    pyplexity_score = args.perpl_limit
 
     with open(f"{path}", "r", encoding='utf-8') as i:
         with open(f"{path}_p", "w+", encoding='utf-8') as w:
             for line in i:
-                #por defeito, computamos pyplexity para cada documento aka "text" field de cada linha 
-                data = json.loads(line, strict=False)
-                data["text"] = data["text"].strip()
-                if args.score:
-                    pyplexity_score = 200
+                if args.mode == "jsonl":
+                    #por defeito, computamos pyplexity para cada documento aka "text" field de cada linha 
+                    data = json.loads(line, strict=False)
+                    data["text"] = data["text"].strip()
                     data["pyplexity_score"] = model.compute_sentence(data["text"])
-                # if args.html_cleaning:
-                #     #input_string = HTMLTagRemover().process(data["text"])
-                #     pass
-                # if args.text_cleaning:
-                #     #clean = text_processor.process(data["text"])
-                #     #data["clean_text"] =  clean
-                #     pass
-                if args.remove_low_scores:
-                    #print(data["pyplexity_score"] < args.perpl_limit, data["pyplexity_score"] )
-                    if "pyplexity_score" in data and (data["pyplexity_score"] < args.perpl_limit):
-                        w.write(json.dumps(data, ensure_ascii=False)+'\n')
+                    # if args.html_cleaning:
+                    #     #input_string = HTMLTagRemover().process(data["text"])
+                    #     pass
+                    # if args.text_cleaning:
+                    #     #clean = text_processor.process(data["text"])
+                    #     #data["clean_text"] =  clean
+                    #     pass
+                    if args.remove_low_scores:
+                        #print(data["pyplexity_score"] < args.perpl_limit, data["pyplexity_score"] )
+                        if "pyplexity_score" in data and (data["pyplexity_score"] < args.perpl_limit):
+                            w.write(json.dumps(data, ensure_ascii=False)+'\n')
+                        else:
+                            removed_data.append(data)
                     else:
-                        removed_data.append(data)
-                else:
-                    w.write(json.dumps(data, ensure_ascii=False)+'\n')
+                        w.write(json.dumps(data, ensure_ascii=False)+'\n')
 
-        if args.remove_low_scores and removed_data:
-            with open(f"{path}_removed", "w+", encoding='utf-8') as r:
-                r.write('\n'.join([json.dumps(line, ensure_ascii=False) for line in removed_data])+'\n')
+                    if args.remove_low_scores and removed_data:
+                        with open(f"{path}_removed", "w+", encoding='utf-8') as r:
+                            r.write('\n'.join([json.dumps(line, ensure_ascii=False) for line in removed_data])+'\n')
+                else:
+                    #process .txt files
+                    line = line.strip()
+                    pyplexity_score = model.compute_sentence(line)
+                    if args.remove_low_scores:
+                        if pyplexity_score < args.perpl_limit:
+                            w.write(line+'\n')
+                        else:
+                            removed_data.append(line)
+                    else:
+                        w.write(line+'\n')
+
+                    if args.remove_low_scores and removed_data:
+                        with open(f"{path}_removed", "w+", encoding='utf-8') as r:
+                            r.write('\n'.join([line for line in removed_data])+'\n')
     return removed_data
 
 def quelingua_lines(path:str, args:object):
@@ -248,12 +266,34 @@ def detokenizer_paulo(text: str):
             f"unexpected return code {result.returncode} from subprocess {result}"
         )
 
+def transliterate_port2gal_batch(words: list[str]) -> list[str]:
+    if not words:
+        return []
+    input_str = "\n".join(words) + "\n"
+    result = subprocess.run(
+        [
+            "perl",
+            f"{dir_path}/external/port2gal/port2gal_mod.perl",
+        ],
+        input=input_str.encode("utf-8"),
+        stdout=subprocess.PIPE,
+    )
+    if result.returncode == 0:
+        output_str = result.stdout.decode("utf-8").strip()
+        if not output_str:
+            return []
+        return output_str.split("\n")
+    else:
+        raise Exception(
+            f"unexpected return code {result.returncode} from batch transliteration"
+        )
+
 def transliterate_port2gal(text: str):
     echo_sentence = subprocess.Popen(["echo", f"{text}"], stdout=subprocess.PIPE)
     result = subprocess.run(
         [
             "perl",
-            f"{dir_path}/external/port2gal/port2gal.perl",
+            f"{dir_path}/external/port2gal/port2gal_mod.perl",
         ],
         stdin=echo_sentence.stdout,
         stdout=subprocess.PIPE,
