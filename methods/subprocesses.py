@@ -273,7 +273,7 @@ def transliterate_port2gal_batch(words: list[str]) -> list[str]:
     result = subprocess.run(
         [
             "perl",
-            f"{dir_path}/external/port2gal/port2gal_mod.perl",
+            f"{dir_path}/external/port2gal/port2gal.perl",
         ],
         input=input_str.encode("utf-8"),
         stdout=subprocess.PIPE,
@@ -293,7 +293,7 @@ def transliterate_port2gal(text: str):
     result = subprocess.run(
         [
             "perl",
-            f"{dir_path}/external/port2gal/port2gal_mod.perl",
+            f"{dir_path}/external/port2gal/port2gal.perl",
         ],
         stdin=echo_sentence.stdout,
         stdout=subprocess.PIPE,
