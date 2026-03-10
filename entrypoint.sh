@@ -190,9 +190,9 @@ then
 
     echo "Running parallel files deduplication..."
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "$2" -t "$3" -m "$4" --field "$field"
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4" --field "$field"
     else
-      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "$2" -t "$3" -m "$4"
+      python3 "$SCRIPT_DIR/main.py" mt_deduplication -s "${source_without_ext}_encoded${extension}" -t "${target_without_ext}_encoded${extension}" -m "$4"
     fi
 
      echo "Running quelingua language filtering using SOURCE file..."
