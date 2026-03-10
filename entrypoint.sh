@@ -204,10 +204,11 @@ then
 
     echo "Running normalization on the new GL file..."
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --jsonl_field "$field" --no-detokenize
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_encoded_deduplicated_quelingua${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --jsonl_field "$field" --no-detokenize
     else
-      python3 "$SCRIPT_DIR/main.py" normalize --path "${source_without_ext}_deduplicated${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --no-detokenize
+      python3 "$SCRIPT_DIR/main.py" normalize --path "${target_without_ext}_encoded_deduplicated_quelingua${extension}" -o "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" -m "$4" --no-detokenize
     fi
+    
     
     echo "Renaming final output files..."
     mv "${source_without_ext}_encoded_deduplicated_quelingua_normalized${extension}" "${source_without_ext}_final${extension}"
