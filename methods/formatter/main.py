@@ -65,7 +65,7 @@ def run(input:str, method:str, output:str, delimiter:str='\n\n\n'):
             new_file.close()
             process_text_delimiter(input, delimiter, output)
     elif method == 'folder':
-            process_folder(input=input)
+            process_folder(input=input, output=output)
 
 if __name__ == "__main__":
     run('test.txt','regex','out_test.jsonl', delimiter='\n\n\n')

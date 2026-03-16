@@ -2,30 +2,29 @@ import subprocess
 import regex as re
 import os
 import logging
-from .subprocesses import transliterate_port2gal, transliterate_port2gal_batch
 import json
-import sys 
+from .subprocesses import transliterate_port2gal, transliterate_port2gal_batch
+from typing import Match, Any, Set, List, Optional, Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-UNKNOWN_TAG = "[[UNK]]"
-GEN_ERROR_TAG = "[[GEN_ERR]]"
-NO_TRANS = "[[NO_TRANS]]"
-cached_errors = {}
-hex_pattern = r"[\x01\x02\x03]"
+UNKNOWN_TAG: str = "[[UNK]]"
+GEN_ERROR_TAG: str = "[[GEN_ERR]]"
+NO_TRANS: str = "[[NO_TRANS]]"
+cached_errors: Dict[str, str] = {}
+hex_pattern: str = r"[\x01\x02\x03]"
 
-def replacer(match):
-    tag = match.group(1)
-    word = match.group(2)
+def replacer(match: Match[str]) -> str:
+    word: str = match.group(2)
     
     if word not in cached_errors:
         cached_errors[word] = transliterate_port2gal(word)
     return cached_errors[word]
 
 
-def _catch_apertium_marks(input_path: str, output_path: str):
+def _catch_apertium_marks(input_path: str, output_path: str) -> None:
     """Process file line-by-line for optimal performance."""
     logging.info(f"Processing file for Apertium marks: {input_path}")
     
@@ -33,24 +32,23 @@ def _catch_apertium_marks(input_path: str, output_path: str):
     pattern = re.compile(r'\[\[(UNK|GEN_ERR|NO_TRANS)\]\]\s*(\p{L}+)')
     
     # Pass 1: Find missing words line by line
-    words_to_translit = set()
+    words_to_translit: Set[str] = set()
     with open(input_path, "r", encoding="utf-8") as fin:
         for line in fin:
             for m in pattern.finditer(line):
                 if m.group(2) not in cached_errors:
                     words_to_translit.add(m.group(2))
                     
-    words_to_translit = list(words_to_translit)
-    if words_to_translit:
+    words_to_translit_list: List[str] = list(words_to_translit)
+    if words_to_translit_list:
         try:
-            logging.info(f"Batch transliterating {len(words_to_translit)} words...")
-            transliterated = transliterate_port2gal_batch(words_to_translit)
-            print(transliterated)
-            if len(transliterated) == len(words_to_translit):
-                for w, tw in zip(words_to_translit, transliterated):
+            logging.info(f"Batch transliterating {len(words_to_translit_list)} words...")
+            transliterated = transliterate_port2gal_batch(words_to_translit_list)
+            if len(transliterated) == len(words_to_translit_list):
+                for w, tw in zip(words_to_translit_list, transliterated):
                     cached_errors[w] = tw
             else:
-                logging.warning(f"Batch size mismatch: expected {len(words_to_translit)}, got {len(transliterated)}. Falling back to element-wise.")
+                logging.warning(f"Batch size mismatch: expected {len(words_to_translit_list)}, got {len(transliterated)}. Falling back to element-wise.")
         except Exception as e:
             logging.warning(f"Batch transliteration failed: {e}. Falling back to element-wise.")
             
@@ -74,42 +72,47 @@ def _catch_apertium_marks(input_path: str, output_path: str):
             
     logging.debug(f"Apertium marks post-processing complete for {input_path}, saved to {output_path}")
 
-def _make_temp_file_path(original_path: str) -> str:
-
+def _make_temp_file_path(original_path: str, field: str) -> str:
     temp_input = f"temp_apertium_input_{os.getpid()}_{id(original_path)}.txt"
-    with open(input_file_path, "r", encoding="utf-8") as fin, open(temp_input, "w", encoding="utf-8") as temp:
+    with open(original_path, "r", encoding="utf-8") as fin, open(temp_input, "w", encoding="utf-8") as temp:
         for line in fin:
             try:
                 data = json.loads(line)
                 temp.write(str(data.get(field, "")) + "\n")
             except json.JSONDecodeError:
                 continue # Skip malformed lines
-    input_file_path = temp_input
+    return temp_input
 
-def _write_temp_to_jsonl(output_path: str, input_file_path:str, temp_path: str, field: str):
+def _write_temp_to_jsonl(output_path: str, input_file_path: str, temp_path: str, field: str) -> None:
     with open(output_path, "w+", encoding="utf-8") as fout, open(temp_path, "r", encoding="utf-8") as temp, open(input_file_path, "r", encoding="utf-8") as fin:
         for orig_line, temp_line in zip(fin, temp):
+            # Assistance for static analyzer without redefinition
+            l_orig: str = orig_line.decode("utf-8") if isinstance(orig_line, bytes) else str(orig_line)
+            l_temp: str = temp_line.decode("utf-8") if isinstance(temp_line, bytes) else str(temp_line)
             try:
-                data = json.loads(orig_line)
-                data[field] = temp_line.strip()
+                data = json.loads(l_orig)
+                data[field] = l_temp.strip()
                 fout.write(json.dumps(data, ensure_ascii=False) + "\n")
             except json.JSONDecodeError:
                 raise ValueError(f"Malformed JSON line: {orig_line.strip()}")
 
                 
-def apertium_pt_gl(input_file_path: str, output_file_path: str, post_transliteration: bool = True, file_type: str = "txt", field: str = None):
+def apertium_pt_gl(input_file_path: str, output_file_path: str, post_transliteration: bool = True, file_type: str = "txt", field: Optional[str] = None) -> None:
     '''
     method to localise Portuguese text to the Galician standard combining symbolic translation from Apertium
     and transliteration for words not covered by the bilingual dictionary of Apertium.
     '''
     logging.info(f"Starting translation from {input_file_path} to {output_file_path}")
+    
+    clean_input_file_path = input_file_path
     if file_type == 'jsonl' and field is None:
         raise ValueError("field parameter is required when file_type is 'jsonl'")
     elif file_type == 'jsonl':
-        input_file_path = _make_temp_file_path(input_file_path)
+        assert field is not None
+        clean_input_file_path = _make_temp_file_path(input_file_path, field)
 
     temp_path = output_file_path + ".tmp"
-    with open(input_file_path, "rb") as fin, open(temp_path, "wb") as fout:
+    with open(clean_input_file_path, "rb") as fin, open(temp_path, "wb") as fout:
         subprocess.run(
             [
                 "docker", "run", "-i", "--rm",
@@ -126,11 +129,11 @@ def apertium_pt_gl(input_file_path: str, output_file_path: str, post_translitera
     if post_transliteration:
         logging.info(f"Starting post-transliteration processing for {output_file_path}")
         if file_type == 'jsonl':
+            assert field is not None
             _catch_apertium_marks(temp_path, "tmp_marks.txt")
             _write_temp_to_jsonl(output_file_path, input_file_path, "tmp_marks.txt", field)
         else:
             _catch_apertium_marks(temp_path, output_file_path)
-            #os.replace(temp_path, output_file_path)
     else:
         os.replace(temp_path, output_file_path)
 
@@ -138,6 +141,9 @@ def apertium_pt_gl(input_file_path: str, output_file_path: str, post_translitera
     for temp_file in [temp_path, "tmp_marks.txt"]:
         if os.path.exists(temp_file):
             os.remove(temp_file)
+    
+    if clean_input_file_path != input_file_path and os.path.exists(clean_input_file_path):
+        os.remove(clean_input_file_path)
 
     logging.info(f"Apertium translation completed: {output_file_path}")
 

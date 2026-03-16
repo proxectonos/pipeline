@@ -1,9 +1,11 @@
 import hashlib
 import json
-import os 
+import os
+import sys
 from pathlib import Path
+from typing import Optional
 
-def parallel_deduplicate(file_to_process: str, parallel_file: str, file_type: str = "text", field: str = None):
+def parallel_deduplicate(file_to_process: str, parallel_file: str, file_type: str = "txt", field: Optional[str] = None) -> None:
     if file_type == "jsonl" and field is None:
         raise ValueError("field parameter is required when file_type is 'jsonl'")
     

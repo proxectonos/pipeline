@@ -1,28 +1,26 @@
-from asyncio import subprocess
 import logging
 import pandas as pd
 import re
 import tqdm
 import sys
 import os
-from multiprocessing import Pool, cpu_count
-from pathlib import Path
+import subprocess
 import json
 import traceback  
-from joblib import Parallel, delayed
 import copy
-# Set up logging
-#logging.basicConfig(level=logging.DEBUG, filename='normalization.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
-import subprocess
+from multiprocessing import Pool, cpu_count
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Set, Generator, Optional, Union
+from joblib import Parallel, delayed
 
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-
-def reinflect_verbs():
+def reinflect_verbs() -> None:
     return
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
+script_dir: str = os.path.dirname(os.path.abspath(__file__))
 
 def _detokenizer(text: str) -> str:
     result = subprocess.run(
@@ -37,7 +35,7 @@ def _detokenizer(text: str) -> str:
     )
     return result.stdout.strip()
 
-def _detokenizer_batch(lines: list[str]) -> list[str]:
+def _detokenizer_batch(lines: List[str]) -> List[str]:
     if not lines:
         return []
     input_str = "\n".join(lines) + "\n"
@@ -56,12 +54,12 @@ def _detokenizer_batch(lines: list[str]) -> list[str]:
         return []
     return output_str.split("\n")
 
-def read_file(path: str = os.path.join(script_dir, "data/format_bel.xlsx")) -> dict:
+def read_file(path: str = os.path.join(script_dir, "data/format_bel.xlsx")) -> Dict[str, pd.DataFrame]:
     xls = pd.ExcelFile(path, engine='openpyxl')
     sheets = {sheet_name: pd.read_excel(xls, sheet_name) for sheet_name in xls.sheet_names}
     return sheets
 
-def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> dict:
+def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> Dict[str, Any]:
     """Read normalization rules from an Excel file and compile them.
 
     Returns a dict with keys: 'error', 'RAG_fc', 'all', 'exact', 'transform'.
@@ -71,7 +69,7 @@ def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> d
     """
     logging.info(f"extracting normalization rules from file {sheets_path}")
     sheets = read_file(sheets_path)
-    error_patterns = {}
+    error_patterns: Dict[str, Any] = {}
     logging.info(f"Compiling patterns from DataFrame 'error'")
     error_patterns["error"] = set(compile_patterns(sheets.get("error", pd.DataFrame())))
     logging.info(f"Compiling patterns from DataFrame  'RAG_fc'")
@@ -97,19 +95,20 @@ def extract_rules(sheets_path: str, exact: bool = False, bel: bool = False) -> d
     error_patterns["transform"] = transform_df
     return error_patterns
 
-def compile_patterns(df: pd.DataFrame) -> list:
-    patterns = []
+def compile_patterns(df: pd.DataFrame) -> List[Tuple[re.Pattern, str]]:
+    patterns: List[Tuple[re.Pattern, str]] = []
     logging.info(f"Compiling {len(df)} rows")
     for index, row in df.iterrows():
         logging.debug(f"Compiling pattern from row {index}: {row[df.columns[0]]} -> {row[df.columns[1]]}")
-        row[df.columns[0]] = row[df.columns[0]].strip()
-        first_letter = row[df.columns[0]][0]
-        erro = re.compile(r'\b' + f'[{first_letter.upper()}{first_letter.lower()}]' + re.escape(row[df.columns[0]][1:]) + r'\b')
-        correct = row[df.columns[1]].strip() if isinstance(row[df.columns[1]], str) else ""
+        col0_val = str(row[df.columns[0]]).strip()
+        if not col0_val: continue
+        first_letter = col0_val[0]
+        erro = re.compile(r'\b' + f'[{first_letter.upper()}{first_letter.lower()}]' + re.escape(col0_val[1:]) + r'\b')
+        correct = str(row[df.columns[1]]).strip() if not pd.isna(row[df.columns[1]]) else ""
         patterns.append((erro, correct))
     return patterns
 
-def parse_replace(patterns: list, text: str) -> str:
+def parse_replace(patterns: Union[List[Tuple[re.Pattern, str]], Set[Tuple[re.Pattern, str]]], text: str) -> str:
     for erro, correct in patterns:
         search = erro.search(text)
         if search:
@@ -121,19 +120,21 @@ def parse_replace(patterns: list, text: str) -> str:
 
 def replace_patterns(df: pd.DataFrame, text: str) -> str:
     for index, row in df.iterrows():
-        pattern = re.compile(row[df.columns[0]])
-        replacement = row[df.columns[1]]
+        pattern = re.compile(str(row[df.columns[0]]))
+        replacement = str(row[df.columns[1]])
         if pattern.search(text):
             text = pattern.sub(replacement, text)
             logging.debug(f"pattern: {pattern.pattern}, replacement: {replacement}, text: {text}")
     return text.strip()
 
-_error_patterns: list[tuple[re.Pattern, str]] = []
-_exact_patterns: set[tuple[re.Pattern, str]] = set()
-_transform_df: pd.DataFrame | None = None
+_error_patterns: Union[List[Tuple[re.Pattern, str]], Set[Tuple[re.Pattern, str]]] = []
+_exact_patterns: Set[Tuple[re.Pattern, str]] = set()
+_transform_df: Optional[pd.DataFrame] = None
+_detokenize: bool = False
+_jsonl_field: Optional[str] = None
 
 
-def _init_worker(error_patterns, exact_patterns, transform_df, detokenize, jsonl_field):
+def _init_worker(error_patterns: Union[List, Set], exact_patterns: Set, transform_df: pd.DataFrame, detokenize: bool, jsonl_field: str) -> None:
     global _error_patterns, _exact_patterns, _transform_df, _detokenize, _jsonl_field
     _error_patterns = error_patterns
     _exact_patterns = exact_patterns
@@ -141,8 +142,8 @@ def _init_worker(error_patterns, exact_patterns, transform_df, detokenize, jsonl
     _detokenize = detokenize
     _jsonl_field = jsonl_field
 
-def _chunk_worker(chunk: list[str]) -> list[str]:
-    results = []
+def _chunk_worker(chunk: List[str]) -> List[Optional[str]]:
+    results: List[Optional[str]] = []
     try:
         # Batch detokenize if requested and not JSON mode
         if not _jsonl_field and _detokenize:
@@ -153,7 +154,7 @@ def _chunk_worker(chunk: list[str]) -> list[str]:
                 if not _jsonl_field:
                     txt_words = parse_replace(_error_patterns, text=line)
                     txt_words = parse_replace(_exact_patterns, text=txt_words)
-                    res = replace_patterns(_transform_df, text=txt_words)
+                    res = replace_patterns(_transform_df, text=txt_words) if _transform_df is not None else txt_words
                     results.append(res)
                 else:
                     data = json.loads(line)
@@ -162,7 +163,7 @@ def _chunk_worker(chunk: list[str]) -> list[str]:
                         content = _detokenizer(content) # Fallback to single text detokenization for JSON fields
                     txt_words = parse_replace(_error_patterns, text=content)
                     txt_words = parse_replace(_exact_patterns, text=txt_words)
-                    data[_jsonl_field] = replace_patterns(_transform_df, text=txt_words)
+                    data[_jsonl_field] = replace_patterns(_transform_df, text=txt_words) if _transform_df is not None else txt_words
                     results.append(json.dumps(data, ensure_ascii=False))
             except Exception:
                 sys.stderr.write(f"WORKER ERROR ON LINE: {line}\n{traceback.format_exc()}\n")
@@ -174,7 +175,7 @@ def _chunk_worker(chunk: list[str]) -> list[str]:
         
     return results
 
-def process_file(input_file: str, sheets: dict, output: str, mode: str, detokenize: bool = False, jsonl_field:str=None):
+def process_file(input_file: str, sheets: Dict[str, Any], output: str, mode: str, detokenize: bool = False, jsonl_field: Optional[str] = None) -> None:
     logging.info(f"Starting normalization of file {input_file}")
 
     if mode == "jsonl" and jsonl_field is None:
@@ -183,13 +184,13 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
         jsonl_field = None
         
     error_patterns = sheets["error"]
-    error_patterns.update(sheets["RAG_fc"])
-    #error_patterns.update(sheets["all"])
+    if "RAG_fc" in sheets:
+        error_patterns.update(sheets["RAG_fc"])
     exact_patterns = sheets["exact"]
     transform_df = sheets["transform"]
 
-    def chunk_generator(iterable, chunk_size):
-        chunk = []
+    def chunk_generator(iterable: Generator[str, None, None], chunk_size: int) -> Generator[List[str], None, None]:
+        chunk: List[str] = []
         for item in iterable:
             chunk.append(item)
             if len(chunk) == chunk_size:
@@ -198,7 +199,7 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
         if chunk:
             yield chunk
 
-    def stream_lines(path):
+    def stream_lines(path: str) -> Generator[str, None, None]:
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 yield line.strip()
@@ -222,44 +223,36 @@ def process_file(input_file: str, sheets: dict, output: str, mode: str, detokeni
                     else:
                         out.write("\n")
                         
-def process(txt: str, path_regras: str = os.path.join(script_dir, "data/format_bel.xlsx"), detokenize: bool = True):
+def process(txt: str, path_regras: str = os.path.join(script_dir, "data/format_bel.xlsx"), detokenize: bool = True) -> Any:
     #process one line
     sheets = read_file(path_regras)
 
     logging.debug(f"sheets: {sheets.keys()}")
-    error_patterns = compile_patterns(sheets["error"])
+    error_patterns: Set[Tuple[re.Pattern, str]] = set(compile_patterns(sheets["error"]))
     error_patterns.update(compile_patterns(sheets["RAG_fc"]))
-    error_patterns.update(compile_patterns(sheets["all"]))
-    #remove potential duplicates
-    logging.debug(f"Initial error patterns: {len(error_patterns)}")
-    error_patterns = set(error_patterns)
+    error_patterns.update(compile_patterns(sheets.get("all", pd.DataFrame())))
+    
     logging.debug(f"Total error patterns: {len(error_patterns)}")
     exact_patterns = set(compile_patterns(sheets["exact"]))
     logging.debug(f"Exact patterns: {len(exact_patterns)}")
     transform_df = sheets["transform"]
 
-    if detokenize:
-        args = [_detokenizer(txt), error_patterns, exact_patterns, transform_df]
-    else:
-        args = [txt, error_patterns, exact_patterns, transform_df]
+    content = _detokenizer(txt) if detokenize else txt
     
-    return process_line(args) 
+    txt_words = parse_replace(error_patterns, text=content)
+    txt_words = parse_replace(exact_patterns, text=txt_words)
+    res = replace_patterns(transform_df, text=txt_words)
+    
+    return res
 
-def list_text_files(root: Path, match:str) -> list[Path]:
+def list_text_files(root: Path, match: str) -> List[Path]:
     return [path for path in root.rglob(match) if path.is_file()]
 
 
 if __name__ == "__main__":
-    '''    if len(sys.argv) > 1:
-            txt_path = sys.argv[1]
-        else:
-            print("Please provide the path to the txt file as an argument.")
-            sys.exit(1)
-
-        process(txt_path, sheets)
-    '''
     sheets = read_file()
     root = Path("/home/cesgaxuser/quelingua_corpora/corpora/es_gz/")
-    for path in list_text_files(root, "*gldeduped.txt"):
-        print( f"Processing file: {path}")
-        process_file(str(path), sheets, detokenize=False)
+    # Example usage (commented out or adjusted as needed)
+    # for path in list_text_files(root, "*gldeduped.txt"):
+    #     print( f"Processing file: {path}")
+    #     process_file(str(path), sheets, output=str(path)+".norm", mode="txt", detokenize=False)

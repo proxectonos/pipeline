@@ -1,84 +1,106 @@
-# NLP_processing for Galician
-Pipeline developed to clean datasets used for training MT and LLM models.
-## Installation
+# Nós NLP Cleaning Pipeline for Galician
 
-it is necessary to install git-lfs to clone the repository
-``
-sudo apt-get install git-lfs
-``
+This toolkit provides a set of tools and pipelines to clean and process Galician datasets, specifically designed for training Machine Translation (MT) and Large Language Models (LLM). It supports both monolingual and parallel corpora in `.txt` and `.jsonl` formats.
 
-## With docker
-``
+## 🚀 Quick Start
+
+### Installation
+
+1. **Install requirements:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **Setup external dependencies:**
+   ```bash
+   ./entrypoint.sh install
+   ```
+   This will clone the necessary repositories (`port2gal`, `pyplexity`, `QueLingua`) into `methods/external`.
+
+### Usage
+The main entry point is `entrypoint.sh`. You can see all available commands by running:
+```bash
+./entrypoint.sh --help
+```
+
+---
+
+## 🛠 Pipeline Modes
+
+### 1. Standard Pipeline (Monolingual)
+Cleans a monolingual Galician corpus.
+- **Workflow:** Encoding Fix → Deduplication → Perplexity Filtering → Language Filtering → Normalization
+- **Commands:**
+  ```bash
+  ./entrypoint.sh standard_pipeline <input.jsonl|.txt>
+  ```
+- **Output:** A normalized `.txt` file with the cleaned content.
+
+### 2. MT Pipeline (Parallel)
+Cleans a parallel corpus where the source is Galician.
+- **Workflow:** Encoding Fix → Parallel Deduplication → FastText Language Filtering → Parallel Pyplexity Filtering → MT Alignment Filtering → Normalization
+- **Commands:**
+  ```bash
+  # For TXT files:
+  ./entrypoint.sh mt_pipeline <source_gl.txt> <target.txt> txt
+  
+  # For JSONL files (specifying the text field):
+  ./entrypoint.sh mt_pipeline <source_gl.jsonl> <target.jsonl> jsonl text
+  ```
+
+### 3. PT-GL Parallel Pipeline (Transliteration)
+Specialized pipeline for Portuguese-to-Galician parallel corpora. It uses Apertium for symbolic translation and `port2gal` for post-processing.
+- **Workflow:** Encoding Fix → Parallel Deduplication → Apertium Transliteration → Normalization
+- **Requirements:** Docker (image `proxectonos/apertium:3.9.12_custom_marks`)
+- **Commands:**
+  ```bash
+  ./entrypoint.sh PT_GL_parallel <source_pt> <target> <format> [field]
+  ```
+
+---
+
+## 🔧 Individual Tools
+
+You can also run individual steps directly through `entrypoint.sh`:
+
+| Tool | Description | Example |
+| :--- | :--- | :--- |
+| `encoder` | Fixes encoding issues | `./entrypoint.sh encoder -p in.txt -o out.txt` |
+| `deduplication` | Removes duplicate documents | `./entrypoint.sh deduplication -p in.jsonl -o out.jsonl` |
+| `mt_alignment` | Flags potentially misaligned source-target pairs and writes a report | `./entrypoint.sh mt_alignment -s src.txt -t tgt.txt -m txt` |
+| `pyplexity` | Perplexity filtering (Galician model) | `./entrypoint.sh pyplexity -p in.jsonl -o out.jsonl` |
+| `filter_lang` | Language filtering (QueLingua) | `./entrypoint.sh filter_lang -p in.jsonl -o out.jsonl` |
+| `normalize` | Applies Galician orthographic rules | `./entrypoint.sh normalize -p in.txt -o out.txt` |
+| `tokenizer` | Specialized Galician tokenizer | `./entrypoint.sh tokenizer -p in.txt -o out.txt` |
+| `formatter` | Converts `.txt` to `.jsonl` via regex | `./entrypoint.sh formatter -p in.txt -o out.jsonl -d '\n\n\n'` |
+
+`mt_alignment` is heuristic rather than semantic MT evaluation. It is designed to catch likely alignment problems such as shifted lines, number mismatches, URL/email mismatches, and structurally implausible source-target pairs. The command produces:
+
+- an aligned source file
+- an aligned target file
+- mismatched source/target files
+- a JSONL report with per-pair scores and reasons
+
+---
+
+## 🐋 With Docker
+
+You can build a Docker image for the entire pipeline:
+```bash
 docker build -t proxectonos/nos:pipeline .
-``
-### How to process a file using the container
-
-``
-docker run --mount src=path/to/folder,target=/aliasfolderfordocker/,type=bind proxectonos/nos:pipeline command(tokenizer, detokenizer, etc) 
-``
-
-## Without Docker
-#### install requirements.txt
-``
-pip install -r requirements.txt
-``
-
-#### make entrypoint executable
 ```
-chmod +x entrypoint.sh
-./entrypoint.sh command (see below)
+
+Run a command using the container:
+```bash
+docker run --mount src=$(pwd)/data,target=/data,type=bind proxectonos/nos:pipeline standard_pipeline /data/corpus.jsonl
 ```
-### run standard text cleaning routine
-By default it expects a .jsonl file. You can transform your .txt file into  .jsonl format by using the following command:
-```
-./entrypoint formatter -p $path_to_file -delimiter $regex_to_divide_txt -o $output_file_path
-```
- Executing the command ./entrypoint standard_pipeline $path_input_file calls the following commands:
-- encoding
-- deduplication
-- pyplexity (perplexity filter)
-- quelingua (filter by lang)
 
+---
 
-## Available commands
-``
-sh entrypoint.sh  --help
-``
+## 📜 Citation
 
-- ``
-sh entrypoint.sh  formatter --path --output  --technique --delimiter
-``
-Transforms a .txt file input into a .jsonl file. The --delimiter can be any  regex pattern, preceded by $ e.g. $'#\|\|\|#' where  #\|\|\|# is the pattern used to divide the text.
-- ``
-sh entrypoint.sh  tokenizer --path --output
-``
-tokenizes a latin script text. This tokenizer was developed mainly for Galician.
-- ``
-sh entrypoint.sh  detokenizer --path --output
-``
-detokenizes a text previously parsed with tokenizer.
-- ``
-sh entrypoint.sh  filter_lang --path --output --filter_results_by_lang
-``
--line by line identification of the language a document is written in. If filter_results_by_lang is provided, the output file will only contain text in the specified language. filter_results_by_lang languages are 2 letter tags e.g. gl for Galician, es for Spanish, etc.
--``
-sh entrypoint.sh  recoglang --path
-``
-Reads an input text file and returns the language it is written in.
-- ``
-sh entrypoint.sh  encoder --path --output
-``
-fixes encoding issues in files.
-- ``
-sh entrypoint.sh  jaccard --path --output
-``
-Deduplicates files based on their Jaccard similarity.
-- ``
-sh entrypoint.sh pyplexity
-``
-Calculates perplexity of the input. This script implements [PyPlexity](https://github.com/citiususc/pyplexity.git)
+If you use this software in your research, please cite:
 
-## How to cite this software
-Please, cite this paper if you use the modules of this NLP toolkit to clean a corpus:
+> Iria de-Dios-Flores, Silvia Paniagua Suárez, Cristina Carbajal Pérez, Daniel Bardanca Outeiriño, Marcos Garcia, and Pablo Gamallo. 2024. **CorpusNÓS: A massive Galician corpus for training large language models**. In *Proceedings of the 16th International Conference on Computational Processing of Portuguese - Vol. 1*, pages 593–599, Santiago de Compostela, Galicia/Spain. Association for Computational Linguistics.
 
-* Iria de-Dios-Flores, Silvia Paniagua Suárez, Cristina Carbajal Pérez, Daniel Bardanca Outeiriño, Marcos Garcia, and Pablo Gamallo. 2024. CorpusNÓS: A massive Galician corpus for training large language models. In Proceedings of the 16th International Conference on Computational Processing of Portuguese - Vol. 1, pages 593–599, Santiago de Compostela, Galicia/Spain. Association for Computational Lingustics.
+## ⚖️ License
+This project is licensed under the MIT License.

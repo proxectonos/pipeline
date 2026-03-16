@@ -25,7 +25,7 @@ def read_documents(filename: str, max_documents: Optional[int] = None, batch_siz
         if not batch:
             break
         documents.extend(batch)
-        if max_documents and len(documents) >= max_documents:
+        if max_documents is not None and len(documents) >= max_documents:
             break
 
     return documents
@@ -54,12 +54,12 @@ def find_similar_documents_minhash_dynamic_threshold(
         max_documents: Optional[int] = None,
         lsh_threshold: float = 0.8,
         generate_deduplication_samples: bool = False,
-        args: Optional[argparse.Namespace] = None
+        args: argparse.Namespace = argparse.Namespace()
 ) -> Tuple[int, int, int]:
     num_perm = 128
 
     if max_documents is not None:
-        documents = documents[:max_documents]
+        documents = documents[:int(max_documents)]
 
     minhash_signatures = [create_minhash_signature(doc, num_perm) for doc in tqdm(documents, desc="Creating Minhash signatures")]
 
@@ -168,7 +168,7 @@ def find_similar_documents_minhash_dynamic_threshold(
     return total_documents_in_file, total_documents_removed, total_documents_after_deduplication
 
 
-def jaccard_deduplicate(args):
+def jaccard_deduplicate(args: argparse.Namespace) -> None:
     try:
         total_documents_in_file, total_documents_removed, total_documents_after_deduplication = find_similar_documents_minhash_dynamic_threshold(
             read_documents(args.path, max_documents=args.max_documents, batch_size=1000, input_format=args.mode),
@@ -187,4 +187,12 @@ def jaccard_deduplicate(args):
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    jaccard_deduplicate()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", required=True)
+    parser.add_argument("--mode", default="jsonl")
+    parser.add_argument("--length_threshold", type=int, default=3)
+    parser.add_argument("--output_file", action="store_true")
+    parser.add_argument("--max_documents", type=int)
+    parser.add_argument("--lsh_threshold", type=float, default=0.8)
+    parser.add_argument("--generate_deduplication_samples", action="store_true")
+    jaccard_deduplicate(parser.parse_args())

@@ -1,15 +1,26 @@
 import os
 import argparse
 from inspect import getmembers, isfunction
-from methods import subprocesses
+from typing import Dict, Any, Callable, List, Optional
+try:
+    from methods import subprocesses
+except ImportError:
+    # Handle case where methods is not in path for linter
+    import sys
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from methods import subprocesses
 
 class ListMethodsAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string):
+    def __call__(self, 
+                 parser: argparse.ArgumentParser, 
+                 namespace: argparse.Namespace, 
+                 values: Any, 
+                 option_string: Optional[str] = None) -> None:
         print(getmembers(subprocesses, isfunction))
-        print(help(subprocesses))
+        help(subprocesses)
         parser.exit()
 
-def build_parser(handlers):
+def build_parser(handlers: Dict[str, Callable[[argparse.Namespace], None]]) -> argparse.ArgumentParser:
     """
     Builds the argument parser and maps handlers to subcommands.
     :param handlers: A dictionary mapping action names to function objects.
@@ -20,6 +31,7 @@ def build_parser(handlers):
     
     parser.add_argument("-lm", "--list_methods", nargs=0, action=ListMethodsAction)
     parser.add_argument("--eol", help="convert EOL to linux format", action=argparse.BooleanOptionalAction)
+    parser.add_argument("-w", "--workers", type=int, default=6, help="Number of parallel workers")
 
     subparsers = parser.add_subparsers(dest="action", help="choose one")
 
@@ -29,6 +41,10 @@ def build_parser(handlers):
     p.add_argument("-t", "--target", type=str, required=True)
     p.add_argument("-cl", "--correct_lang_source", type=str, required=True)
     p.add_argument("-ot", "--output_tag", type=str, required=False, default="_quelingua")
+    p.add_argument("-fm", "--filter_method", type=str, default="quelingua", choices=["quelingua", "fasttext"])
+    p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
+    p.add_argument("-th", "--threshold", type=float, default=0.4)
+    p.add_argument("-tk", "--top_k", type=int, default=3)
     p.set_defaults(func=handlers['mt_quelingua'])
 
     # 2. Formatter
@@ -40,30 +56,42 @@ def build_parser(handlers):
     p.set_defaults(func=handlers['formatter'])
 
     # 3. Pipeline Tasks
-    pipeline_cmds = ["encoder", "tokenizer", "detokenizer", "filter_lang", "pyplexity", "mt_transliteration"]
+    pipeline_cmds = ["encoder", "tokenizer", "detokenizer", "filter_lang", "pyplexity", "mt_transliteration", "fasttext_gl"]
     for cmd in pipeline_cmds:
         p = subparsers.add_parser(cmd, parents=[base_parser])
         p.add_argument("--path", "-p", required=True)
         p.add_argument("-o", "--output", required=True)
         
         if cmd == "encoder":
+            p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
             p.add_argument("-cat", "--categories", default=[])
             p.add_argument("-char", "--characters", default="")
             p.add_argument("-rmchar", "--remove-characters", default="")
             p.add_argument("-emo", "--emojies", action=argparse.BooleanOptionalAction, default=False)
         elif cmd == "filter_lang":
             p.add_argument("-f", "--filter_results_by_lang", default=False)
+            p.add_argument("-pf", "--parallel_file", type=str, default=None, help="Path to parallel file to filter in sync")
+            p.add_argument("-po", "--parallel_output", type=str, default=None, help="Path to output for the filtered parallel file")
         elif cmd == "pyplexity":
             default_model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models/bigrams_modelo-gl-bigramas-merged.st")
             p.add_argument("-pm", "--path_model", default=default_model_path)
             p.add_argument("-s", "--score", action=argparse.BooleanOptionalAction, default=True)
+            p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
             p.add_argument("-pl", "--perpl_limit", type=int, default=2000)
             p.add_argument("-r", "--remove_low_scores", action=argparse.BooleanOptionalAction, default=True)
+            p.add_argument("-pf", "--parallel_file", type=str, default=None, help="Path to parallel file to filter in sync")
+            p.add_argument("-po", "--parallel_output", type=str, default=None, help="Path to output for the filtered parallel file")
             p.add_argument("pyplexity_args", nargs=argparse.REMAINDER)
         elif cmd == "mt_transliteration":
             p.add_argument("-q", "--quelingua", action=argparse.BooleanOptionalAction, default=False)
             p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
             #p.set_defaults(func=handlers['mt_transliteration'])
+        elif cmd == "fasttext_gl":
+            p.add_argument("-t", "--threshold", type=float, default=0.05, help="Confidence threshold for GL (within top K)")
+            p.add_argument("-k", "--top_k", type=int, default=3, help="Top K predictions to consider")
+            p.add_argument("-f", "--field", default="text", help="JSONL text field")
+            p.add_argument("-pf", "--parallel_file", type=str, default=None, help="Path to parallel file to filter in sync")
+            p.add_argument("-po", "--parallel_output", type=str, default=None, help="Path to output for the filtered parallel file")
 
         p.set_defaults(func=handlers['pipeline'])
 
@@ -71,7 +99,7 @@ def build_parser(handlers):
     p = subparsers.add_parser("normalize", parents=[base_parser])
     p.add_argument("-p", "--path", required=True)
     p.add_argument("--detokenize", action=argparse.BooleanOptionalAction, default=False)
-    p.add_argument("--jsonl_field", action=argparse.BooleanOptionalAction, default=None)
+    p.add_argument("--jsonl_field", default=None, help="Field name for jsonl files")
     p.add_argument("-o", "--output", required=True)
     p.add_argument("-b", "--bel", action=argparse.BooleanOptionalAction ,default=False)
     p.add_argument("-e", "--exact", action=argparse.BooleanOptionalAction ,default=False)
@@ -97,6 +125,8 @@ def build_parser(handlers):
     p = subparsers.add_parser("deduplication", parents=[base_parser])
     p.add_argument("-p", "--path", required=True)
     p.add_argument("-o", "--output")
+    p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
+    p.add_argument("--type", choices=["simple", "jaccard"], default="simple")
     p.add_argument("-ilf", "--input_lf", type=int, default=3)
     p.add_argument("-olf", "--output_lf", type=int, default=2)
     p.add_argument("-t", "--threshold", type=int, default=15)
@@ -109,6 +139,20 @@ def build_parser(handlers):
     p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
     p.add_argument("-d", "--save_duplicates", action=argparse.BooleanOptionalAction, default=False)
     p.set_defaults(func=handlers['mt_deduplication'])
+
+    p = subparsers.add_parser("mt_alignment", parents=[base_parser])
+    p.add_argument("-s", "--source", required=True)
+    p.add_argument("-t", "--target", required=True)
+    p.add_argument("-f", "--field", default=None, help="Field name for jsonl files")
+    p.add_argument("-ot", "--output_tag", default="_alignment")
+    p.add_argument("-rp", "--report_path", default=None)
+    p.add_argument("-st", "--score_threshold", type=float, default=0.45)
+    p.add_argument("-sm", "--shift_margin", type=float, default=0.12)
+    p.add_argument("-nw", "--neighbor_window", type=int, default=1)
+    p.add_argument("-mlr", "--min_length_ratio", type=float, default=0.45)
+    p.add_argument("-mps", "--min_punctuation_similarity", type=float, default=0.2)
+    p.add_argument("-mes", "--min_entity_anchor_similarity", type=float, default=0.2)
+    p.set_defaults(func=handlers['mt_alignment'])
 
     '''    p = subparsers.add_parser("mt_transliteration", parents=[base_parser])
         p.add_argument("-p", "--path", required=True)

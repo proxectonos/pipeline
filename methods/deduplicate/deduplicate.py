@@ -61,4 +61,12 @@ def run(args):
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", default="jsonl")
+    parser.add_argument("--input_lf", type=int, default=3)
+    parser.add_argument("--output_lf", type=int, default=2)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--path", required=True)
+    parser.add_argument("--threshold", type=int, default=15)
+    parser.add_argument("--save_duplicates", action="store_true")
+    run(parser.parse_args())
