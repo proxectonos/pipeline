@@ -62,23 +62,235 @@ Specialized pipeline for Portuguese-to-Galician parallel corpora. It uses Aperti
 
 You can also run individual steps directly through `entrypoint.sh`:
 
-| Tool | Description | Example |
-| :--- | :--- | :--- |
-| `encoder` | Fixes encoding issues | `./entrypoint.sh encoder -p in.txt -o out.txt` |
-| `deduplication` | Removes duplicate documents | `./entrypoint.sh deduplication -p in.jsonl -o out.jsonl` |
-| `mt_alignment` | Flags potentially misaligned source-target pairs and writes a report | `./entrypoint.sh mt_alignment -s src.txt -t tgt.txt -m txt` |
-| `pyplexity` | Perplexity filtering (Galician model) | `./entrypoint.sh pyplexity -p in.jsonl -o out.jsonl` |
-| `filter_lang` | Language filtering (QueLingua) | `./entrypoint.sh filter_lang -p in.jsonl -o out.jsonl` |
-| `normalize` | Applies Galician orthographic rules | `./entrypoint.sh normalize -p in.txt -o out.txt` |
-| `tokenizer` | Specialized Galician tokenizer | `./entrypoint.sh tokenizer -p in.txt -o out.txt` |
-| `formatter` | Converts `.txt` to `.jsonl` via regex | `./entrypoint.sh formatter -p in.txt -o out.jsonl -d '\n\n\n'` |
+Global options (available for all commands):
 
-`mt_alignment` is heuristic rather than semantic MT evaluation. It is designed to catch likely alignment problems such as shifted lines, number mismatches, URL/email mismatches, and structurally implausible source-target pairs. The command produces:
+- `-m, --mode` (default: `jsonl`): Input/output format (`txt` or `jsonl`)
+- `-w, --workers` (default: `6`): Number of worker processes for pipeline tasks
+- `--eol`: Convert line endings to LF before processing
+- `-lm, --list_methods`: Print methods from `subprocesses.py`
 
-- an aligned source file
-- an aligned target file
-- mismatched source/target files
-- a JSONL report with per-pair scores and reasons
+### `formatter`
+
+- `-p, --path` (required): Input file path
+- `-o, --output` (required): Output file path
+- `-t, --technique` (default: `regex`)
+- `-d, --delimiter` (default: `\n\n\n`)
+
+Example:
+```bash
+./entrypoint.sh formatter -p in.txt -o out.jsonl -d '\n\n\n'
+```
+
+### `encoder`
+
+- `-p, --path` (required): Input file
+- `-o, --output` (required): Output file
+- `-f, --field`: JSONL field to edit
+- `-cat, --categories`: Categories for encoding fixer
+- `-char, --characters`
+- `-rmchar, --remove-characters`
+- `-emo, --emojies` / `--no-emojies`
+
+Example:
+```bash
+./entrypoint.sh encoder -p in.jsonl -o out.jsonl -m jsonl -f text
+```
+
+### `tokenizer`
+
+- `-p, --path` (required)
+- `-o, --output` (required)
+
+Example:
+```bash
+./entrypoint.sh tokenizer -p in.txt -o out.txt -m txt
+```
+
+### `detokenizer`
+
+- `-p, --path` (required)
+- `-o, --output` (required)
+
+Example:
+```bash
+./entrypoint.sh detokenizer -p in.txt -o out.txt -m txt
+```
+
+### `filter_lang`
+
+- `-p, --path` (required): Input file
+- `-o, --output` (required): Output file
+- `-f, --filter_results_by_lang` (default: `False`)
+- `-pf, --parallel_file`: Optional parallel file to filter in sync
+- `-po, --parallel_output`: Output for filtered parallel file
+
+Example:
+```bash
+./entrypoint.sh filter_lang -p in.jsonl -o out.jsonl -m jsonl -f gl
+```
+
+### `fasttext_gl`
+
+- `-p, --path` (required): Input file
+- `-o, --output` (required): Output file
+- `-t, --threshold` (default: `0.05`)
+- `-k, --top_k` (default: `3`)
+- `-f, --field` (default: `text`)
+- `-pf, --parallel_file`: Optional parallel file to filter in sync
+- `-po, --parallel_output`: Output for filtered parallel file
+
+Example:
+```bash
+./entrypoint.sh fasttext_gl -p in.jsonl -o out.jsonl -m jsonl -f text
+```
+
+### `pyplexity`
+
+- `-p, --path` (required): Input file
+- `-o, --output` (required): Output file
+- `-pm, --path_model` (default: `models/bigrams_modelo-gl-bigramas-merged.st`)
+- `-s, --score` / `--no-score` (default: enabled)
+- `-f, --field`: JSONL field
+- `-pl, --perpl_limit` (default: `2000`)
+- `-r, --remove_low_scores` / `--no-remove_low_scores` (default: enabled)
+- `-pf, --parallel_file`: Optional parallel file to filter in sync
+- `-po, --parallel_output`: Output for filtered parallel file
+
+Example:
+```bash
+./entrypoint.sh pyplexity -p in.jsonl -o out.jsonl -m jsonl -f text
+```
+
+### `normalize`
+
+- `-p, --path` (required): Input file
+- `-o, --output` (required): Output file
+- `--detokenize` / `--no-detokenize` (default: `--no-detokenize`)
+- `--jsonl_field`: Field for JSONL mode
+- `-b, --bel` / `--no-bel`
+- `-e, --exact` / `--no-exact`
+
+Example:
+```bash
+./entrypoint.sh normalize -p in.txt -o out.txt -m txt --no-detokenize
+```
+
+### `deduplication`
+
+- `-p, --path` (required)
+- `-o, --output`
+- `-f, --field`: JSONL field
+- `--type` (`simple` or `jaccard`, default: `simple`)
+- `-ilf, --input_lf` (default: `3`)
+- `-olf, --output_lf` (default: `2`)
+- `-t, --threshold` (default: `15`)
+- `-s, --save_duplicates` / `--no-save_duplicates`
+
+Example:
+```bash
+./entrypoint.sh deduplication -p in.jsonl -o out.jsonl --type simple -m jsonl
+```
+
+### `jaccard`
+
+- `-p, --path` (required)
+- `-o, --output_file` (store results to file)
+- `-md, --max_documents`
+- `-lt, --length_threshold` (default: `3`)
+- `-lsh, --lsh_threshold` (default: `0.8`)
+- `-gds, --generate_deduplication_samples`
+
+Example:
+```bash
+./entrypoint.sh jaccard -p in.jsonl -m jsonl -o
+```
+
+### `mt_deduplication`
+
+- `-s, --source` (required)
+- `-t, --target` (required)
+- `-f, --field`: Required for JSONL alignment keys
+- `-d, --save_duplicates` / `--no-save_duplicates`
+
+Example:
+```bash
+./entrypoint.sh mt_deduplication -s src.jsonl -t tgt.jsonl -m jsonl -f text
+```
+
+### `mt_alignment`
+
+- `-s, --source` (required)
+- `-t, --target` (required)
+- `-f, --field`: JSONL text field
+- `-ot, --output_tag` (default: `_alignment`)
+- `-rp, --report_path`: Optional report output path
+- `-st, --score_threshold` (default: `0.45`)
+- `-sm, --shift_margin` (default: `0.12`)
+- `-nw, --neighbor_window` (default: `1`)
+- `-mlr, --min_length_ratio` (default: `0.45`)
+- `-mps, --min_punctuation_similarity` (default: `0.2`)
+- `-mes, --min_entity_anchor_similarity` (default: `0.2`)
+
+`mt_alignment` is heuristic rather than semantic MT evaluation. It is designed to catch likely alignment problems such as shifted lines, number mismatches, URL/email mismatches, and structurally implausible source-target pairs.
+
+Outputs:
+
+- aligned source file
+- aligned target file
+- mismatched source file
+- mismatched target file
+- JSONL report with per-pair scores and reasons
+
+Example:
+```bash
+./entrypoint.sh mt_alignment -s src.txt -t tgt.txt -m txt -st 0.5 -sm 0.08
+```
+
+### `mt_quelingua`
+
+- `-s, --source` (required)
+- `-t, --target` (required)
+- `-cl, --correct_lang_source` (required)
+- `-ot, --output_tag` (default: `_quelingua`)
+- `-fm, --filter_method` (`quelingua` or `fasttext`, default: `quelingua`)
+- `-f, --field`: JSONL field
+- `-th, --threshold` (default: `0.4`)
+- `-tk, --top_k` (default: `3`)
+
+Example:
+```bash
+./entrypoint.sh mt_quelingua -s src.txt -t tgt.txt -cl gl -m txt
+```
+
+### `mt_transliteration`
+
+- `-p, --path` (required)
+- `-o, --output` (required)
+- `-q, --quelingua` / `--no-quelingua` (default: disabled)
+- `-f, --field`: JSONL field
+
+Example:
+```bash
+./entrypoint.sh mt_transliteration -p src.txt -o out.txt -m txt
+```
+
+### `recoglang`
+
+- `-p, --path` (required)
+
+Example:
+```bash
+./entrypoint.sh recoglang -p in.txt
+```
+
+### `fix_new_lines`
+
+- `-p, --path` (required)
+
+Example:
+```bash
+./entrypoint.sh fix_new_lines -p in.txt
+```
 
 ---
 
