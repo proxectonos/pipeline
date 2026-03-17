@@ -2,10 +2,12 @@ import argparse
 import json
 import re
 import unicodedata
-from collections import Counter, deque
+from collections import Counter
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+from tqdm import tqdm
 
 
 TOKEN_RE = re.compile(r"\w+", re.UNICODE)
@@ -13,6 +15,45 @@ NUMBER_RE = re.compile(r"\d+(?:[.,:/-]\d+)*")
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 PUNCT_CHARS = ".,;:!?()[]{}\"'%-"
+
+
+_EMBEDDING_MODEL = None
+
+
+def _load_embedding_model(model_name: str, device: str):
+    global _EMBEDDING_MODEL
+    if _EMBEDDING_MODEL is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise ImportError(
+                "sentence-transformers is required for mt_alignment. Install with: pip install sentence-transformers"
+            ) from exc
+        _EMBEDDING_MODEL = SentenceTransformer(model_name, device=device)
+    return _EMBEDDING_MODEL
+
+
+def _encode_batch(texts: List[str], model_name: str, device: str, batch_size: int):
+    model = _load_embedding_model(model_name, device)
+    return model.encode(
+        texts,
+        batch_size=batch_size,
+        normalize_embeddings=True,
+        show_progress_bar=True,
+    )
+
+
+def _paired_cosine_similarities(source_embs, target_embs) -> List[float]:
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise ImportError("numpy is required for mt_alignment") from exc
+    return np.sum(source_embs * target_embs, axis=1).astype(float).tolist()
+
+
+def _pair_similarity(source_emb, target_emb) -> float:
+    # Embeddings are already L2-normalized.
+    return float((source_emb * target_emb).sum())
 
 
 def _strip_accents(text: str) -> str:
@@ -26,17 +67,6 @@ def _fold_text(text: str) -> str:
 
 def _tokenize(text: str) -> List[str]:
     return TOKEN_RE.findall(_fold_text(text))
-
-
-def _long_tokens(text: str) -> Set[str]:
-    return {token for token in _tokenize(text) if len(token) >= 4}
-
-
-def _char_ngrams(text: str, n: int = 3) -> Set[str]:
-    compact = re.sub(r"\s+", " ", _fold_text(text)).strip()
-    if len(compact) < n:
-        return {compact} if compact else set()
-    return {compact[idx:idx + n] for idx in range(len(compact) - n + 1)}
 
 
 def _jaccard(left: Iterable[str], right: Iterable[str]) -> float:
@@ -68,22 +98,6 @@ def _counter_similarity(left: Counter, right: Counter) -> float:
     return shared / total if total else 1.0
 
 
-def _extract_entities(text: str) -> Set[str]:
-    entities = set()
-    for idx, token in enumerate(re.findall(r"\b[^\s]+\b", text)):
-        stripped = token.strip(".,;:!?()[]{}\"'")
-        if len(stripped) < 3:
-            continue
-        if any(ch.isdigit() for ch in stripped):
-            entities.add(_fold_text(stripped))
-            continue
-        if idx == 0 and stripped[:1].isupper() and stripped[1:].islower():
-            continue
-        if stripped[:1].isupper() and not stripped.isupper():
-            entities.add(_fold_text(stripped))
-    return entities
-
-
 def _optional_anchor_score(source_items: Set[str], target_items: Set[str]) -> Optional[float]:
     if not source_items and not target_items:
         return None
@@ -96,54 +110,23 @@ def _preview(text: str, limit: int = 120) -> str:
 
 
 def _compute_pair_features(source_text: str, target_text: str) -> Dict[str, float]:
-    return {
+    features: Dict[str, float] = {
         "length_ratio": _length_ratio(source_text, target_text),
         "punctuation_similarity": _counter_similarity(
             _extract_punctuation_profile(source_text),
             _extract_punctuation_profile(target_text),
         ),
-        "token_overlap": _jaccard(_long_tokens(source_text), _long_tokens(target_text)),
-        "char_ngram_similarity": _jaccard(_char_ngrams(source_text), _char_ngrams(target_text)),
     }
-
-
-def _score_pair(source_text: str, target_text: str) -> Tuple[float, Dict[str, float]]:
-    features = _compute_pair_features(source_text, target_text)
-    weighted_total = 0.0
-    total_weight = 0.0
-
-    base_weights = {
-        "length_ratio": 0.45,
-        "punctuation_similarity": 0.20,
-        "token_overlap": 0.20,
-        "char_ngram_similarity": 0.15,
-    }
-    for key, weight in base_weights.items():
-        weighted_total += features[key] * weight
-        total_weight += weight
-
-    optional_features = {
-        "number_anchor": _optional_anchor_score(set(NUMBER_RE.findall(source_text)), set(NUMBER_RE.findall(target_text))),
-        "url_anchor": _optional_anchor_score(set(URL_RE.findall(source_text)), set(URL_RE.findall(target_text))),
-        "email_anchor": _optional_anchor_score(set(EMAIL_RE.findall(source_text)), set(EMAIL_RE.findall(target_text))),
-        "entity_anchor": _optional_anchor_score(_extract_entities(source_text), _extract_entities(target_text)),
-    }
-    optional_weights = {
-        "number_anchor": 0.25,
-        "url_anchor": 0.20,
-        "email_anchor": 0.15,
-        "entity_anchor": 0.20,
-    }
-    for key, value in optional_features.items():
-        if value is None:
-            continue
-        features[key] = value
-        weighted_total += value * optional_weights[key]
-        total_weight += optional_weights[key]
-
-    score = weighted_total / total_weight if total_weight else 0.0
-    features["alignment_score"] = score
-    return score, features
+    number_anchor = _optional_anchor_score(set(NUMBER_RE.findall(source_text)), set(NUMBER_RE.findall(target_text)))
+    url_anchor = _optional_anchor_score(set(URL_RE.findall(source_text)), set(URL_RE.findall(target_text)))
+    email_anchor = _optional_anchor_score(set(EMAIL_RE.findall(source_text)), set(EMAIL_RE.findall(target_text)))
+    if number_anchor is not None:
+        features["number_anchor"] = number_anchor
+    if url_anchor is not None:
+        features["url_anchor"] = url_anchor
+    if email_anchor is not None:
+        features["email_anchor"] = email_anchor
+    return features
 
 
 def _detect_reasons(source_text: str, target_text: str, features: Dict[str, float], args: argparse.Namespace) -> List[str]:
@@ -160,16 +143,10 @@ def _detect_reasons(source_text: str, target_text: str, features: Dict[str, floa
         reasons.append("url_mismatch")
     if features.get("email_anchor") is not None and features["email_anchor"] == 0.0:
         reasons.append("email_mismatch")
-    if (
-        features.get("entity_anchor") is not None
-        and features["entity_anchor"] < args.min_entity_anchor_similarity
-        and features.get("alignment_score", 1.0) < args.score_threshold
-    ):
-        reasons.append("named_entity_mismatch")
-    if features.get("punctuation_similarity", 1.0) < args.min_punctuation_similarity:
+    if features.get("punctuation_similarity", 1.0) < getattr(args, "min_punctuation_similarity", 0.0):
         reasons.append("punctuation_mismatch")
-    if features.get("alignment_score", 1.0) < args.score_threshold:
-        reasons.append("low_alignment_score")
+    if features.get("embedding_similarity", 1.0) < args.score_threshold:
+        reasons.append("low_embedding_similarity")
     return reasons
 
 
@@ -185,66 +162,37 @@ def _ensure_newline(raw_line: str) -> str:
     return raw_line if raw_line.endswith("\n") else raw_line + "\n"
 
 
-def _iter_parallel_records(source_path: str, target_path: str, mode: str, field: Optional[str]) -> Iterator[Dict[str, Any]]:
+def _load_all_records(
+    source_path: str,
+    target_path: str,
+    mode: str,
+    field: Optional[str],
+) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+    with open(source_path, "r", encoding="utf-8") as source_file:
+        source_lines = sum(1 for _ in source_file)
+
     with open(source_path, "r", encoding="utf-8") as source_file, open(target_path, "r", encoding="utf-8") as target_file:
-        for idx, pair in enumerate(zip_longest(source_file, target_file, fillvalue=None), start=1):
+        iterator = enumerate(zip_longest(source_file, target_file, fillvalue=None), start=1)
+        iterator = tqdm(iterator, total=source_lines, desc="Loading parallel pairs", unit="lines")
+        for idx, pair in iterator:
             source_raw, target_raw = pair
             if source_raw is None or target_raw is None:
                 raise ValueError(f"Source and target files have different number of lines at pair {idx}")
             source_text, source_data = _load_record(source_raw, mode, field)
             target_text, target_data = _load_record(target_raw, mode, field)
-            yield {
-                "index": idx,
-                "source_raw": _ensure_newline(source_raw),
-                "target_raw": _ensure_newline(target_raw),
-                "source_text": source_text,
-                "target_text": target_text,
-                "source_data": source_data,
-                "target_data": target_data,
-            }
-
-
-def _classify_record(
-    record: Dict[str, Any],
-    previous_target_texts: List[str],
-    next_target_texts: List[str],
-    args: argparse.Namespace,
-) -> Tuple[bool, Dict[str, Any]]:
-    score, features = _score_pair(record["source_text"], record["target_text"])
-    reasons = _detect_reasons(record["source_text"], record["target_text"], features, args)
-
-    best_neighbor_offset = 0
-    best_neighbor_score = score
-
-    for offset, target_text in enumerate(reversed(previous_target_texts), start=1):
-        candidate_score, _ = _score_pair(record["source_text"], target_text)
-        if candidate_score > best_neighbor_score:
-            best_neighbor_score = candidate_score
-            best_neighbor_offset = -offset
-
-    for offset, target_text in enumerate(next_target_texts, start=1):
-        candidate_score, _ = _score_pair(record["source_text"], target_text)
-        if candidate_score > best_neighbor_score:
-            best_neighbor_score = candidate_score
-            best_neighbor_offset = offset
-
-    suspicious = bool(reasons)
-    if best_neighbor_offset != 0 and best_neighbor_score >= score + args.shift_margin:
-        suspicious = True
-        reasons.append(f"better_match_at_target_offset_{best_neighbor_offset}")
-
-    report_row = {
-        "line": record["index"],
-        "alignment_score": round(score, 4),
-        "best_neighbor_offset": best_neighbor_offset,
-        "best_neighbor_score": round(best_neighbor_score, 4),
-        "suspicious": suspicious,
-        "reasons": reasons,
-        "features": {key: round(value, 4) for key, value in features.items()},
-        "source_preview": _preview(record["source_text"]),
-        "target_preview": _preview(record["target_text"]),
-    }
-    return suspicious, report_row
+            records.append(
+                {
+                    "index": idx,
+                    "source_raw": _ensure_newline(source_raw),
+                    "target_raw": _ensure_newline(target_raw),
+                    "source_text": source_text,
+                    "target_text": target_text,
+                    "source_data": source_data,
+                    "target_data": target_data,
+                }
+            )
+    return records
 
 
 def _derive_output_paths(source: str, target: str, output_tag: str, report_path: Optional[str]) -> Dict[str, Path]:
@@ -266,36 +214,68 @@ def _derive_output_paths(source: str, target: str, output_tag: str, report_path:
 
 def run_mt_alignment(args: argparse.Namespace) -> None:
     paths = _derive_output_paths(args.source, args.target, args.output_tag, args.report_path)
-    record_iter = _iter_parallel_records(args.source, args.target, args.mode, args.field)
-    future_buffer = deque()
-    previous_target_texts = deque(maxlen=max(args.neighbor_window, 0))
-    target_future_size = max(args.neighbor_window, 0) + 1
+    records = _load_all_records(args.source, args.target, args.mode, args.field)
+    source_texts = [record["source_text"] for record in records]
+    target_texts = [record["target_text"] for record in records]
 
-    while len(future_buffer) < target_future_size:
-        try:
-            future_buffer.append(next(record_iter))
-        except StopIteration:
-            break
+    print("Encoding source sentences...")
+    source_embs = _encode_batch(source_texts, args.model, args.device, args.batch_size)
+    print("Encoding target sentences...")
+    target_embs = _encode_batch(target_texts, args.model, args.device, args.batch_size)
+    pair_scores = _paired_cosine_similarities(source_embs, target_embs)
 
-    total_pairs = 0
+    total_pairs = len(records)
     kept_pairs = 0
     mismatched_pairs = 0
+    neighbor_window = max(args.neighbor_window, 0)
 
     with open(paths["source_out"], "w", encoding="utf-8") as source_out, \
          open(paths["target_out"], "w", encoding="utf-8") as target_out, \
          open(paths["source_bad"], "w", encoding="utf-8") as source_bad, \
          open(paths["target_bad"], "w", encoding="utf-8") as target_bad, \
          open(paths["report"], "w", encoding="utf-8") as report_file:
-        while future_buffer:
-            record = future_buffer.popleft()
-            total_pairs += 1
-            next_target_texts = [item["target_text"] for item in list(future_buffer)[:args.neighbor_window]]
-            suspicious, report_row = _classify_record(
-                record,
-                list(previous_target_texts),
-                next_target_texts,
-                args,
-            )
+        row_iterable = enumerate(records)
+        row_iterable = tqdm(row_iterable, total=total_pairs, desc="Scoring and writing", unit="pairs")
+        for idx, record in row_iterable:
+            score = pair_scores[idx]
+            features = _compute_pair_features(record["source_text"], record["target_text"])
+            features["embedding_similarity"] = score
+            features["alignment_score"] = score
+            reasons = _detect_reasons(record["source_text"], record["target_text"], features, args)
+
+            best_neighbor_offset = 0
+            best_neighbor_score = score
+            for offset in range(1, neighbor_window + 1):
+                prev_idx = idx - offset
+                next_idx = idx + offset
+                if prev_idx >= 0:
+                    candidate_score = _pair_similarity(source_embs[idx], target_embs[prev_idx])
+                    if candidate_score > best_neighbor_score:
+                        best_neighbor_score = candidate_score
+                        best_neighbor_offset = -offset
+                if next_idx < total_pairs:
+                    candidate_score = _pair_similarity(source_embs[idx], target_embs[next_idx])
+                    if candidate_score > best_neighbor_score:
+                        best_neighbor_score = candidate_score
+                        best_neighbor_offset = offset
+
+            suspicious = bool(reasons)
+            if best_neighbor_offset != 0 and best_neighbor_score >= score + args.shift_margin:
+                suspicious = True
+                reasons.append(f"better_match_at_target_offset_{best_neighbor_offset}")
+
+            report_row = {
+                "line": record["index"],
+                "embedding_similarity": round(score, 4),
+                "alignment_score": round(score, 4),
+                "best_neighbor_offset": best_neighbor_offset,
+                "best_neighbor_score": round(best_neighbor_score, 4),
+                "suspicious": suspicious,
+                "reasons": reasons,
+                "features": {key: round(value, 4) for key, value in features.items()},
+                "source_preview": _preview(record["source_text"]),
+                "target_preview": _preview(record["target_text"]),
+            }
             report_file.write(json.dumps(report_row, ensure_ascii=False) + "\n")
 
             if suspicious:
@@ -306,14 +286,6 @@ def run_mt_alignment(args: argparse.Namespace) -> None:
                 kept_pairs += 1
                 source_out.write(record["source_raw"])
                 target_out.write(record["target_raw"])
-
-            previous_target_texts.append(record["target_text"])
-
-            while len(future_buffer) < target_future_size:
-                try:
-                    future_buffer.append(next(record_iter))
-                except StopIteration:
-                    break
 
     print(f"Processed {total_pairs} parallel pairs")
     print(f"Aligned output: {paths['source_out']} and {paths['target_out']}")
