@@ -224,14 +224,26 @@ Example:
 - `-f, --field`: JSONL text field
 - `-ot, --output_tag` (default: `_alignment`)
 - `-rp, --report_path`: Optional report output path
-- `-st, --score_threshold` (default: `0.45`)
-- `-sm, --shift_margin` (default: `0.12`)
-- `-nw, --neighbor_window` (default: `1`)
-- `-mlr, --min_length_ratio` (default: `0.45`)
-- `-mps, --min_punctuation_similarity` (default: `0.2`)
-- `-mes, --min_entity_anchor_similarity` (default: `0.2`)
+- `-sl, --source_lang` (default: `glg_Latn`)
+- `-tl, --target_lang` (default: `eng_Latn`)
+- `-sc, --scorer` (choices: `blaser_qe`, `cosine`, default: `blaser_qe`)
+- `-d, --device` (default: `cuda`)
+- `-bs, --batch_size` (default: `256`)
+- `-bmt, --batch_max_tokens` (default: `None`)
+- `-st, --score_threshold` (default: `3.0`)
+- `-sm, --shift_margin` (default: `0.10`)
+- `-nw, --neighbor_window` (default: `2`)
+- `-mlr, --min_length_ratio` (default: `0.30`)
 
-`mt_alignment` is heuristic rather than semantic MT evaluation. It is designed to catch likely alignment problems such as shifted lines, number mismatches, URL/email mismatches, and structurally implausible source-target pairs.
+`mt_alignment` uses SONAR embeddings and supports two scoring modes:
+
+- `blaser_qe` (default): BLASER 2.0 Quality Estimation score 
+- `cosine`: cosine similarity over SONAR embeddings
+
+Threshold guidance:
+
+- For `blaser_qe`, start around `-st 3.0`
+- For `cosine`, start around `-st 0.65`
 
 Outputs:
 
@@ -243,7 +255,44 @@ Outputs:
 
 Example:
 ```bash
-./entrypoint.sh mt_alignment -s src.txt -t tgt.txt -m txt -st 0.5 -sm 0.08
+./entrypoint.sh mt_alignment -s src.txt -t tgt.txt -m txt -sl glg_Latn -tl eng_Latn -sc blaser_qe -st 3.0 -d cuda
+```
+
+Full command with all options:
+```bash
+./entrypoint.sh mt_alignment \
+  -s src.txt \
+  -t tgt.txt \
+  -m txt \
+  -f text \
+  -ot _alignment \
+  -rp alignment_report.jsonl \
+  -sl glg_Latn \
+  -tl eng_Latn \
+  -sc blaser_qe \
+  -d cuda \
+  -bs 256 \
+  -bmt 8192 \
+  -st 3.0 \
+  -sm 0.10 \
+  -nw 2 \
+  -mlr 0.30
+```
+
+Language code reference:
+
+- SONAR model card (includes supported language codes and examples): https://huggingface.co/facebook/SONAR/blob/main/README.md
+
+Troubleshooting (Conda + BLASER):
+
+If you see this error:
+
+`OSError: fairseq2 requires libsndfile`
+
+install the missing dependency in your conda environment:
+
+```bash
+conda install -n pipeline2 -c conda-forge libsndfile==1.0.31
 ```
 
 ### `mt_quelingua`
