@@ -2,11 +2,12 @@ import argparse
 import json
 import re
 import unicodedata
-from collections import Counter
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import numpy as np
+import torch
 from tqdm import tqdm
 
 
@@ -14,45 +15,113 @@ TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 NUMBER_RE = re.compile(r"\d+(?:[.,:/-]\d+)*")
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
-PUNCT_CHARS = ".,;:!?()[]{}\"'%-"
 
 
-_EMBEDDING_MODEL = None
+_SONAR_ENCODER = None
+_BLASER_MODEL = None
 
 
-def _load_embedding_model(model_name: str, device: str):
-    global _EMBEDDING_MODEL
-    if _EMBEDDING_MODEL is None:
+def _load_sonar_encoder(device: str):
+    global _SONAR_ENCODER
+    if _SONAR_ENCODER is None:
         try:
-            from sentence_transformers import SentenceTransformer
+            from sonar.inference_pipelines.text import TextToEmbeddingModelPipeline
         except ImportError as exc:
             raise ImportError(
-                "sentence-transformers is required for mt_alignment. Install with: pip install sentence-transformers"
+                "sonar-space is required for mt_alignment. "
+                "Install with: pip install sonar-space"
             ) from exc
-        _EMBEDDING_MODEL = SentenceTransformer(model_name, device=device)
-    return _EMBEDDING_MODEL
+        _SONAR_ENCODER = TextToEmbeddingModelPipeline(
+            encoder="text_sonar_basic_encoder",
+            tokenizer="text_sonar_basic_encoder",
+            device=torch.device(device),
+        )
+    return _SONAR_ENCODER
 
 
-def _encode_batch(texts: List[str], model_name: str, device: str, batch_size: int):
-    model = _load_embedding_model(model_name, device)
-    return model.encode(
-        texts,
-        batch_size=batch_size,
-        normalize_embeddings=True,
-        show_progress_bar=True,
-    )
+def _load_blaser_model(device: str):
+    global _BLASER_MODEL
+    if _BLASER_MODEL is None:
+        try:
+            from sonar.models.blaser.loader import load_blaser_model
+        except ImportError as exc:
+            raise ImportError(
+                "BLASER is required for blaser_qe scoring. "
+                "Install with: pip install sonar-space"
+            ) from exc
+        _BLASER_MODEL = load_blaser_model("blaser_2_0_qe").eval().to(torch.device(device))
+    return _BLASER_MODEL
 
 
-def _paired_cosine_similarities(source_embs, target_embs) -> List[float]:
-    try:
-        import numpy as np
-    except ImportError as exc:
-        raise ImportError("numpy is required for mt_alignment") from exc
-    return np.sum(source_embs * target_embs, axis=1).astype(float).tolist()
+def _encode_batch(
+    texts: List[str],
+    lang: str,
+    device: str,
+    batch_size: int,
+    batch_max_tokens: Optional[int],
+    normalize: bool,
+) -> torch.Tensor:
+    encoder = _load_sonar_encoder(device)
+    predict_kwargs: Dict[str, Any] = {
+        "source_lang": lang,
+        "progress_bar": True,
+        "target_device": torch.device(device),
+    }
+    if batch_max_tokens is not None:
+        predict_kwargs["batch_max_tokens"] = batch_max_tokens
+        predict_kwargs["batch_size"] = batch_size
+    else:
+        predict_kwargs["batch_size"] = batch_size
+
+    # `predict` returns a torch.Tensor on `target_device` (see SONAR pipeline)
+    result = encoder.predict(texts, **predict_kwargs)
+    if not normalize:
+        return result
+
+    norms = torch.linalg.norm(result, dim=1, keepdim=True)
+    norms[norms == 0] = 1.0
+    return result / norms
 
 
-def _pair_similarity(source_emb, target_emb) -> float:
+def _paired_cosine_similarities(source_embs: torch.Tensor, target_embs: torch.Tensor) -> List[float]:
+    # Compute dot product per row on device and return python floats
+    vals = (source_embs * target_embs).sum(dim=1).cpu().tolist()
+    return [float(v) for v in vals]
+
+
+def _paired_blaser_scores(source_embs: torch.Tensor, target_embs: torch.Tensor, device: str, batch_size: int) -> List[float]:
+    model = _load_blaser_model(device)
+    scores: List[float] = []
+    with torch.inference_mode():
+        for i in tqdm(range(0, source_embs.size(0), batch_size), desc="Scoring BLASER", unit="batch"):
+            src_batch = source_embs[i : i + batch_size]
+            mt_batch = target_embs[i : i + batch_size]
+            batch_scores = model(src=src_batch, mt=mt_batch).detach().cpu().view(-1).tolist()
+            scores.extend(float(score) for score in batch_scores)
+    return scores
+
+
+def _score_pairs(source_embs, target_embs, args: argparse.Namespace) -> List[float]:
+    if args.scorer == "blaser_qe":
+        return _paired_blaser_scores(source_embs, target_embs, args.device, args.batch_size)
+    return _paired_cosine_similarities(source_embs, target_embs)
+
+
+def _pair_similarity(source_emb, target_emb, args: argparse.Namespace) -> float:
+    if args.scorer == "blaser_qe":
+        model = _load_blaser_model(args.device)
+        # Accept either numpy arrays or torch tensors
+        if isinstance(source_emb, torch.Tensor) and isinstance(target_emb, torch.Tensor):
+            src = source_emb.unsqueeze(0).to(torch.device(args.device))
+            mt = target_emb.unsqueeze(0).to(torch.device(args.device))
+        else:
+            src = torch.from_numpy(np.asarray([source_emb], dtype=np.float32)).to(torch.device(args.device))
+            mt = torch.from_numpy(np.asarray([target_emb], dtype=np.float32)).to(torch.device(args.device))
+        with torch.inference_mode():
+            return float(model(src=src, mt=mt).detach().cpu().view(-1)[0])
     # Embeddings are already L2-normalized.
+    if isinstance(source_emb, torch.Tensor) and isinstance(target_emb, torch.Tensor):
+        return float((source_emb * target_emb).sum().item())
     return float((source_emb * target_emb).sum())
 
 
@@ -85,25 +154,6 @@ def _length_ratio(source_text: str, target_text: str) -> float:
     return min(source_len, target_len) / max(source_len, target_len)
 
 
-def _extract_punctuation_profile(text: str) -> Counter:
-    return Counter(ch for ch in text if ch in PUNCT_CHARS)
-
-
-def _counter_similarity(left: Counter, right: Counter) -> float:
-    keys = set(left) | set(right)
-    if not keys:
-        return 1.0
-    shared = sum(min(left[key], right[key]) for key in keys)
-    total = sum(max(left[key], right[key]) for key in keys)
-    return shared / total if total else 1.0
-
-
-def _optional_anchor_score(source_items: Set[str], target_items: Set[str]) -> Optional[float]:
-    if not source_items and not target_items:
-        return None
-    return _jaccard(source_items, target_items)
-
-
 def _preview(text: str, limit: int = 120) -> str:
     compact = re.sub(r"\s+", " ", text).strip()
     return compact[:limit] + ("..." if len(compact) > limit else "")
@@ -112,20 +162,19 @@ def _preview(text: str, limit: int = 120) -> str:
 def _compute_pair_features(source_text: str, target_text: str) -> Dict[str, float]:
     features: Dict[str, float] = {
         "length_ratio": _length_ratio(source_text, target_text),
-        "punctuation_similarity": _counter_similarity(
-            _extract_punctuation_profile(source_text),
-            _extract_punctuation_profile(target_text),
-        ),
     }
-    number_anchor = _optional_anchor_score(set(NUMBER_RE.findall(source_text)), set(NUMBER_RE.findall(target_text)))
-    url_anchor = _optional_anchor_score(set(URL_RE.findall(source_text)), set(URL_RE.findall(target_text)))
-    email_anchor = _optional_anchor_score(set(EMAIL_RE.findall(source_text)), set(EMAIL_RE.findall(target_text)))
-    if number_anchor is not None:
-        features["number_anchor"] = number_anchor
-    if url_anchor is not None:
-        features["url_anchor"] = url_anchor
-    if email_anchor is not None:
-        features["email_anchor"] = email_anchor
+    source_numbers = set(NUMBER_RE.findall(source_text))
+    target_numbers = set(NUMBER_RE.findall(target_text))
+    if source_numbers or target_numbers:
+        features["number_anchor"] = _jaccard(source_numbers, target_numbers)
+    source_urls = set(URL_RE.findall(source_text))
+    target_urls = set(URL_RE.findall(target_text))
+    if source_urls or target_urls:
+        features["url_anchor"] = _jaccard(source_urls, target_urls)
+    source_emails = set(EMAIL_RE.findall(source_text))
+    target_emails = set(EMAIL_RE.findall(target_text))
+    if source_emails or target_emails:
+        features["email_anchor"] = _jaccard(source_emails, target_emails)
     return features
 
 
@@ -143,10 +192,8 @@ def _detect_reasons(source_text: str, target_text: str, features: Dict[str, floa
         reasons.append("url_mismatch")
     if features.get("email_anchor") is not None and features["email_anchor"] == 0.0:
         reasons.append("email_mismatch")
-    if features.get("punctuation_similarity", 1.0) < getattr(args, "min_punctuation_similarity", 0.0):
-        reasons.append("punctuation_mismatch")
-    if features.get("embedding_similarity", 1.0) < args.score_threshold:
-        reasons.append("low_embedding_similarity")
+    if features.get("alignment_score", 1.0) < args.score_threshold:
+        reasons.append("low_alignment_score")
     return reasons
 
 
@@ -218,11 +265,27 @@ def run_mt_alignment(args: argparse.Namespace) -> None:
     source_texts = [record["source_text"] for record in records]
     target_texts = [record["target_text"] for record in records]
 
-    print("Encoding source sentences...")
-    source_embs = _encode_batch(source_texts, args.model, args.device, args.batch_size)
-    print("Encoding target sentences...")
-    target_embs = _encode_batch(target_texts, args.model, args.device, args.batch_size)
-    pair_scores = _paired_cosine_similarities(source_embs, target_embs)
+    normalize_for_scorer = args.scorer == "cosine"
+
+    print(f"Encoding source sentences ({args.source_lang})...")
+    source_embs = _encode_batch(
+        source_texts,
+        args.source_lang,
+        args.device,
+        args.batch_size,
+        args.batch_max_tokens,
+        normalize_for_scorer,
+    )
+    print(f"Encoding target sentences ({args.target_lang})...")
+    target_embs = _encode_batch(
+        target_texts,
+        args.target_lang,
+        args.device,
+        args.batch_size,
+        args.batch_max_tokens,
+        normalize_for_scorer,
+    )
+    pair_scores = _score_pairs(source_embs, target_embs, args)
 
     total_pairs = len(records)
     kept_pairs = 0
@@ -239,7 +302,6 @@ def run_mt_alignment(args: argparse.Namespace) -> None:
         for idx, record in row_iterable:
             score = pair_scores[idx]
             features = _compute_pair_features(record["source_text"], record["target_text"])
-            features["embedding_similarity"] = score
             features["alignment_score"] = score
             reasons = _detect_reasons(record["source_text"], record["target_text"], features, args)
 
@@ -249,12 +311,12 @@ def run_mt_alignment(args: argparse.Namespace) -> None:
                 prev_idx = idx - offset
                 next_idx = idx + offset
                 if prev_idx >= 0:
-                    candidate_score = _pair_similarity(source_embs[idx], target_embs[prev_idx])
+                    candidate_score = _pair_similarity(source_embs[idx], target_embs[prev_idx], args)
                     if candidate_score > best_neighbor_score:
                         best_neighbor_score = candidate_score
                         best_neighbor_offset = -offset
                 if next_idx < total_pairs:
-                    candidate_score = _pair_similarity(source_embs[idx], target_embs[next_idx])
+                    candidate_score = _pair_similarity(source_embs[idx], target_embs[next_idx], args)
                     if candidate_score > best_neighbor_score:
                         best_neighbor_score = candidate_score
                         best_neighbor_offset = offset
@@ -266,7 +328,7 @@ def run_mt_alignment(args: argparse.Namespace) -> None:
 
             report_row = {
                 "line": record["index"],
-                "embedding_similarity": round(score, 4),
+                "scorer": args.scorer,
                 "alignment_score": round(score, 4),
                 "best_neighbor_offset": best_neighbor_offset,
                 "best_neighbor_score": round(best_neighbor_score, 4),
