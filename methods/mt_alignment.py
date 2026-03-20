@@ -35,6 +35,7 @@ def _load_sonar_encoder(device: str):
             encoder="text_sonar_basic_encoder",
             tokenizer="text_sonar_basic_encoder",
             device=torch.device(device),
+            dtype=torch.float16, 
         )
     return _SONAR_ENCODER
 
@@ -49,7 +50,7 @@ def _load_blaser_model(device: str):
                 "BLASER is required for blaser_qe scoring. "
                 "Install with: pip install sonar-space"
             ) from exc
-        _BLASER_MODEL = load_blaser_model("blaser_2_0_qe").eval().to(torch.device(device))
+        _BLASER_MODEL = load_blaser_model("blaser_2_0_qe").eval().half().to(torch.device(device))
     return _BLASER_MODEL
 
 

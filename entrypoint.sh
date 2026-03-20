@@ -335,9 +335,23 @@ then
 
     echo "Running fasttext language filtering using SOURCE file..."
     if [ "$4" = "jsonl" ]; then
-      python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_${1}_encoded_deduplicated${extension}" -t "${target_without_ext}_${1}_encoded_deduplicated${extension}" -m "$4" --field "$field" -cl gl -fm fasttext -ot "_fasttext"
+       python "$SCRIPT_DIR/main.py" fasttext_gl \
+       --path   "${source_without_ext}_${1}_encoded_deduplicated${extension}"\
+       --output "${source_without_ext}_${1}_encoded_deduplicated_fasttext${extension}" \
+       --parallel_file "${target_without_ext}_${1}_encoded_deduplicated${extension}" \
+       --parallel_output "${target_without_ext}_${1}_encoded_deduplicated_fasttext${extension}" \
+       --mode jsonl \
+       --text_field "$field" \
+       --threshold 0.5
     else
-      python3 "$SCRIPT_DIR/main.py" mt_quelingua -s "${source_without_ext}_${1}_encoded_deduplicated${extension}" -t "${target_without_ext}_${1}_encoded_deduplicated${extension}" -m "$4" -cl gl -fm fasttext -ot "_fasttext"
+
+      python "$SCRIPT_DIR/main.py" fasttext_gl \
+       --path   "${source_without_ext}_${1}_encoded_deduplicated${extension}"\
+       --output "${source_without_ext}_${1}_encoded_deduplicated_fasttext${extension}" \
+       --parallel_file "${target_without_ext}_${1}_encoded_deduplicated${extension}" \
+       --parallel_output "${target_without_ext}_${1}_encoded_deduplicated_fasttext${extension}" \
+       --mode txt \
+       --threshold 0.5
     fi
 
     src_fasttext="${source_without_ext}_${1}_encoded_deduplicated_fasttext${extension}"
