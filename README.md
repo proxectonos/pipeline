@@ -77,6 +77,8 @@ Deduplicates files based on their Jaccard similarity.
 sh entrypoint.sh pyplexity
 ``
 Calculates perplexity of the input. This script implements [PyPlexity](https://github.com/citiususc/pyplexity.git)
+## Funding
+This pipeline was developed within the Nós Project, funded by the Ministerio para la Transformación Digital y de la Función Pública - Funded by EU – NextGenerationEU within the framework of the project ILENIA with reference 2022/TL22/00215336. 
 
 ## How to cite this software
 Please, cite this paper if you use the modules of this NLP toolkit to clean a corpus:
